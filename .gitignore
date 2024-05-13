@@ -25,3 +25,4 @@ _work/
 .pytest_cache/
 changelog.md
 .pixi/
+.vscode
