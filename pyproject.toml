@@ -29,7 +29,7 @@ classifiers = [
 dependencies = ["clapper", "sqlalchemy>=2", "tabulate", "click"]
 
 [project.urls]
-documentation = "https://gridtk.readthedocs.io/en/latest/"
+documentation = "https://gridtk.readthedocs.io/en/v2.1.0/"
 homepage = "https://pypi.org/project/gridtk"
 repository = "https://gitlab.idiap.ch/software/gridtk"
 changelog = "https://gitlab.idiap.ch/software/gridtk/-/releases"
