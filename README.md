@@ -4,9 +4,9 @@ SPDX-FileCopyrightText: Copyright © 2022 Idiap Research Institute <contact@idia
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
-[![latest-docs](https://img.shields.io/badge/docs-v2.1.0-orange.svg)](https://gridtk.readthedocs.io/en/v2.1.0/)
-[![build](https://gitlab.idiap.ch/software/gridtk/badges/v2.1.0/pipeline.svg)](https://gitlab.idiap.ch/software/gridtk/commits/v2.1.0)
-[![coverage](https://gitlab.idiap.ch/software/gridtk/badges/v2.1.0/coverage.svg)](https://www.idiap.ch/software/biosignal/docs/software/gridtk/v2.1.0/coverage/index.html)
+[![latest-docs](https://img.shields.io/badge/docs-latest-orange.svg)](https://gridtk.readthedocs.io/en/latest/)
+[![build](https://gitlab.idiap.ch/software/gridtk/badges/main/pipeline.svg)](https://gitlab.idiap.ch/software/gridtk/commits/main)
+[![coverage](https://gitlab.idiap.ch/software/gridtk/badges/main/coverage.svg)](https://www.idiap.ch/software/biosignal/docs/software/gridtk/main/coverage/index.html)
 [![repository](https://img.shields.io/badge/gitlab-project-0000c0.svg)](https://gitlab.idiap.ch/software/gridtk)
 
 # GridTK: SLURM Job Managetment for Humans
