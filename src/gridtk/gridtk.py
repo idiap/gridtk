@@ -744,10 +744,12 @@ def report(ctx, job_ids, states, names):
             report_text += f"Nodes: {job.nodes}\n"
             for output, error in zip(job.output_files, job.error_files):
                 report_text += f"Output file: {output}\n"
-                report_text += output.open().read() + "\n\n"
+                if output.exists():
+                    report_text += output.open().read() + "\n\n"
                 if error != output:
                     report_text += f"Error file: {error}\n"
-                    report_text += error.open().read() + "\n\n"
+                    if error.exists():
+                        report_text += error.open().read() + "\n\n"
             pydoc.pager(report_text)
         session.commit()
 
