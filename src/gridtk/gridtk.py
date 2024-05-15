@@ -699,6 +699,8 @@ def stop(ctx, job_ids, states, names):
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager.session as session:
         jobs = job_manager.list_jobs(job_ids=job_ids, states=states, names=names)
+        for job in jobs:
+            job.cancel(delete_logs=False)
         session.commit()
 
 
