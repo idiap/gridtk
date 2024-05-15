@@ -330,6 +330,7 @@ class Job(Base):
         self.exit_code = job_status_dict["derived_exit_code"]["return_code"]["number"]
         self.nodes = job_status_dict["nodes"]
         if self.nodes == "None assigned":
+            # TODO: sometimes only the state_reason from squeue contains the reason
             self.nodes = job_status_dict["state"]["reason"]
         assert (
             self.state in JOB_STATES_MAPPING.values()
@@ -488,6 +489,7 @@ dependencies: {dict(dependencies)}"""
                 ), f"{len(dep_jobs)}!= {len(job.dependencies)}"
                 for dep_type, dep_job in zip(job.dep_types, dep_jobs):
                     dependencies[dep_type].append(dep_job)
+            job.cancel(delete_logs=True)
             job.submit(dependencies=dependencies)
             self.session.add(job)
         return jobs
@@ -695,12 +697,12 @@ def resubmit(ctx, job_ids, states, names):
 @click.pass_context
 def stop(ctx, job_ids, states, names):
     """Stop a job from running."""
-    click.echo("stop")
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager.session as session:
         jobs = job_manager.list_jobs(job_ids=job_ids, states=states, names=names)
         for job in jobs:
             job.cancel(delete_logs=False)
+            click.echo(f"Stopped {job.id}")
         session.commit()
 
 
