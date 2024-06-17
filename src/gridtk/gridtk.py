@@ -1,8 +1,16 @@
-"""Implements a Slurm job manager Jobs are kept track of in an SQL database and
-logs are written to a default logs folder.
+"""Implements a Slurm job manager. Jobs are kept track of in an SQL database
+and logs are written to a default logs folder.
 
 There is no need to create bash wrapper script to pass sbatch option.
 Implements wrappers for sbatch, scancel, squeue, sacct, and sinfo
+
+Useful commands:
+    - See all your jobs:
+        squeue --me
+    - Cancel ALL your jobs:
+        scancel --me
+    - View current QOS policies:
+        sacctmgr show qos format=Name%20,Priority,Flags%30,MaxWall,MaxTRESPU%20,MaxJobsPU,MaxSubmitPU,MaxTRESPA%25
 """
 
 import json
@@ -250,42 +258,53 @@ class Job(Base):
             f")"
         )
 
+    @property
+    def command_in_bash(self) -> str:
+        if "---" not in self.command:
+            return ""
+        content = "#!/bin/bash\n"
+        split_idx = self.command.index("---")
+        content += shlex.join(self.command[split_idx + 1 :]) + "\n"
+        return content
+
+    def submitted_command(self, fh, dependencies):
+        command = list(self.command)
+        if dependencies:
+            dep_options = []
+            # add dependency jobs with their grid id to command
+            for dep_type, dep_job_list in dependencies.items():
+                dep_option = ",".join(
+                    f"{dep_type}{dep_job.grid_id}" for dep_job in dep_job_list
+                )
+                dep_options.append(dep_option)
+            command.insert(0, "--dependency=" + ",".join(dep_options))
+
+        if "---" in command:
+            if any(arg.startswith("--wrap") for arg in command):
+                raise RuntimeError("Cannot use --wrap and --- together.")
+            split_idx = command.index("---")
+            fh.write(self.command_in_bash)
+            command = command[:split_idx] + [fh.name]
+
+        fh.flush()
+        fh.close()  # close now to flush the file
+        return [
+            "sbatch",
+            "--job-name",
+            self.name,
+            "--output",
+            str(self.output),
+            "--error",
+            str(self.error),
+        ] + command
+
     def submit(self, dependencies: dict[str, list["Job"]] = None):
         with tempfile.NamedTemporaryFile(
             mode="w+t", suffix=".sh", delete_on_close=False
         ) as fh:
-            command = list(self.command)
-            if dependencies:
-                dep_options = []
-                # add dependency jobs with their grid id to command
-                for dep_type, dep_job_list in dependencies.items():
-                    dep_option = ",".join(
-                        f"{dep_type}{dep_job.grid_id}" for dep_job in dep_job_list
-                    )
-                    dep_options.append(dep_option)
-                command.insert(0, "--dependency=" + ",".join(dep_options))
-
-            if "---" in command:
-                if any(arg.startswith("--wrap") for arg in command):
-                    raise RuntimeError("Cannot use --wrap and --- together.")
-                split_idx = command.index("---")
-                fh.write("#!/bin/bash\n")
-                fh.write(shlex.join(command[split_idx + 1 :]) + "\n")
-                command = command[:split_idx] + [fh.name]
-
-            fh.flush()
-            fh.close()  # close now to flush the file
+            command = self.submitted_command(fh=fh, dependencies=dependencies)
             output = subprocess.check_output(
-                [
-                    "sbatch",
-                    "--job-name",
-                    self.name,
-                    "--output",
-                    str(self.output),
-                    "--error",
-                    str(self.error),
-                ]
-                + command,
+                command,
                 text=True,
             )
         # find job ID from output
@@ -340,8 +359,12 @@ class Job(Base):
     def _path_for_array_task_id(self, path, array_task_id):
         stem = path.stem
         # we assume all log files for array files end with -%a.suffix
-        stem_job, _ = stem.rsplit("-", 1)
-        return path.with_stem(f"{stem_job}-{array_task_id}")
+        try:
+            stem_job, _ = stem.rsplit("-", 1)
+            return path.with_stem(f"{stem_job}-{array_task_id}")
+        except ValueError as e:
+            logger.warning(f"Could not parse array task id from {stem}, error was {e}")
+            return path
 
     @property
     def output_files(self):
@@ -557,7 +580,8 @@ gridtk submit -n 10 --time=24:00:00 --wrap="my_script.sh --my-option=value my-ar
 """,
     context_settings=dict(
         ignore_unknown_options=True,
-        allow_extra_args=True,
+        # allow_extra_args=True,
+        allow_interspersed_args=False,
     ),
 )
 @click.option("-J", "--job-name", help="Name of the job.", default="gridtk")
@@ -577,15 +601,16 @@ gridtk submit -n 10 --time=24:00:00 --wrap="my_script.sh --my-option=value my-ar
     help="Submits the job N times. Each job will depend on the job before.",
 )
 @click.option("--print-id", is_flag=True, help="Print the id of the submitted job.")
+@click.argument("command", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def submit(ctx, job_name, output, error, dependencies, repeat, print_id):
+def submit(ctx, job_name, output, error, dependencies, repeat, print_id, command):
     """Submit a job to the queue."""
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager.session as session:
         for _ in range(repeat):
             job = job_manager.submit_job(
                 name=job_name,
-                command=ctx.args,
+                command=command,
                 output=output,
                 error=error,
                 dependencies=dependencies,
@@ -709,7 +734,7 @@ def stop(ctx, job_ids, states, names):
 @cli.command(name="list")
 @job_filters
 @click.pass_context
-def list_jobs(ctx, job_ids, states, names):
+def list_jobs(ctx: click.Context, job_ids, states, names):
     """List jobs in the queue, similar to sacct and squeue."""
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager.session as session:
@@ -728,14 +753,21 @@ def list_jobs(ctx, job_ids, states, names):
             table["dependencies"].append(
                 ",".join([str(dep_job) for dep_job in job.dependencies])
             )
+            table["command"].append("gridtk submit " + " ".join(job.command))
         click.echo(tabulate(table, headers="keys"))
         session.commit()
 
 
 @cli.command()
 @job_filters
+@click.option(
+    "-a",
+    "--array",
+    "array_idx",
+    help="Array index to see the logs for only one item of an array job.",
+)
 @click.pass_context
-def report(ctx, job_ids, states, names):
+def report(ctx, job_ids, states, names, array_idx):
     """Report on jobs in the queue."""
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager.session as session:
@@ -746,7 +778,18 @@ def report(ctx, job_ids, states, names):
             report_text += f"Name: {job.name}\n"
             report_text += f"State: {job.state} ({job.exit_code})\n"
             report_text += f"Nodes: {job.nodes}\n"
-            for output, error in zip(job.output_files, job.error_files):
+            with tempfile.NamedTemporaryFile(mode="w+t", suffix=".sh") as tmpfile:
+                report_text += f"Submitted command: {job.submitted_command(tmpfile, dependencies=None)}\n"
+                if job.command_in_bash:
+                    report_text += (
+                        f"Content of the temporary script:\n{job.command_in_bash}\n"
+                    )
+            output_files, error_files = job.output_files, job.error_files
+            if array_idx is not None:
+                array_idx = int(array_idx)
+                output_files = output_files[array_idx : array_idx + 1]
+                error_files = error_files[array_idx : array_idx + 1]
+            for output, error in zip(output_files, error_files):
                 report_text += f"Output file: {output}\n"
                 if output.exists():
                     report_text += output.open().read() + "\n\n"
