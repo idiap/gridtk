@@ -536,7 +536,13 @@ class CustomGroup(AliasedGroup):
         return super().get_command(ctx, cmd_name)
 
 
-@click.group(cls=CustomGroup, context_settings={"show_default": True})
+@click.group(
+    cls=CustomGroup,
+    context_settings={
+        "show_default": True,
+        "help_option_names": ["--help", "-h", "-?"],
+    },
+)
 @click.option(
     "-d",
     "--database",
