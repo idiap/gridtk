@@ -21,8 +21,6 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-import time
-
 from collections import defaultdict
 from pathlib import Path
 from sqlite3 import Connection as SQLite3Connection
@@ -30,11 +28,9 @@ from typing import Optional
 
 import click
 import sqlalchemy
-
 from clapper.click import AliasedGroup
 from loguru import logger
 from sqlalchemy import (
-    Boolean,
     Column,
     ForeignKey,
     Integer,
@@ -538,7 +534,7 @@ class CustomGroup(AliasedGroup):
     cls=CustomGroup,
     context_settings={
         "show_default": True,
-        "help_option_names": ["--help", "-h", "-?"],
+        "help_option_names": ["--help", "-h"],
     },
 )
 @click.option(
@@ -580,7 +576,8 @@ def dependency_callback(ctx, param, value) -> dict[str, list[int]]:
 
 @cli.command(
     epilog="""Example:
-gridtk submit -n 10 --time=24:00:00 --wrap="my_script.sh --my-option=value my-arg0 my-arg1"
+gridtk submit my_script.sh
+gridtk submit --- python my_code.py
 """,
     context_settings=dict(
         ignore_unknown_options=True,
@@ -588,23 +585,16 @@ gridtk submit -n 10 --time=24:00:00 --wrap="my_script.sh --my-option=value my-ar
         allow_interspersed_args=False,
     ),
 )
-@click.option("-J", "--job-name", help="Name of the job.", default="gridtk")
 @click.option(
-    "-o",
-    "--output",
-    help="Ignored, change --logs-dir in the upper command instead.",
-    type=click.Path(path_type=Path),
-)
-@click.option(
-    "-e",
-    "--error",
-    help="Ignored, change --logs-dir in the upper command instead.",
-    type=click.Path(path_type=Path),
+    "-J",
+    "--job-name",
+    default="gridtk",
+    help="Specify a name for the job allocation. The specified name will appear along with the job id number when querying running jobs on the system.",
 )
 @click.option(
     "-a",
     "--array",
-    help="Submit a job array, multiple jobs to be executed with identical parameters.",
+    help='Submit a job array, multiple jobs to be executed with identical parameters. The indexes specification identifies what array index values should be used. Multiple values may be specified using a comma separated list and/or a range of values with a "-" separator. For example, "--array=0-15" or "--array=0,6,16-32". A step function can also be specified with a suffix containing a colon and number. For example, "--array=0-15:4" is equivalent to "--array=0,4,8,12". A maximum number of simultaneously running tasks from the job array may be specified using a "%" separator. For example "--array=0-15%4" will limit the number of simultaneously running tasks from this job array to 4. The minimum index value is 0. the maximum value is one less than the configuration parameter MaxArraySize. NOTE: Currently, federated job arrays only run on the local cluster.',
 )
 @click.option(
     "-d",
@@ -619,11 +609,134 @@ gridtk submit -n 10 --time=24:00:00 --wrap="my_script.sh --my-option=value my-ar
     type=click.INT,
     help="Submits the job N times. Each job will depend on the job before.",
 )
-@click.argument("command", nargs=-1, type=click.UNPROCESSED)
+# sbatch options
+@click.option("-A", "--account", hidden=True)
+@click.option("--acctg-freq", hidden=True)
+@click.option("--batch", hidden=True)
+@click.option("--bb", hidden=True)
+@click.option("--bbf", hidden=True)
+@click.option("-b", "--begin", hidden=True)
+@click.option("-D", "--chdir", hidden=True)
+@click.option("--cluster-constraint", hidden=True)
+@click.option("-M", "--clusters", hidden=True)
+@click.option("--comment", hidden=True)
+@click.option("-C", "--constraint", hidden=True)
+@click.option("--container", hidden=True)
+@click.option("--container-id", hidden=True)
+@click.option("--contiguous", is_flag=True, hidden=True)
+@click.option("-S", "--core-spec", hidden=True)
+@click.option("--cores-per-socket", hidden=True)
+@click.option("--cpu-freq", hidden=True)
+@click.option("--cpus-per-gpu", hidden=True)
+@click.option("-c", "--cpus-per-task", hidden=True)
+@click.option("--deadline", hidden=True)
+@click.option("--delay-boot", hidden=True)
+@click.option("-d", "--dependency", hidden=True)
+@click.option("-m", "--distribution", hidden=True)
+@click.option("-e", "--error", hidden=True)
+@click.option("-x", "--exclude", hidden=True)
+@click.option("--exclusive", hidden=True)
+@click.option("--export", hidden=True)
+@click.option("--export-file", hidden=True)
+@click.option("--extra", hidden=True)
+@click.option("-B", "--extra-node-info", hidden=True)
+@click.option("--get-user-env", hidden=True)
+@click.option("--gid", hidden=True)
+@click.option("--gpu-bind", hidden=True)
+@click.option("--gpu-freq", hidden=True)
+@click.option("-G", "--gpus", hidden=True)
+@click.option("--gpus-per-node", hidden=True)
+@click.option("--gpus-per-socket", hidden=True)
+@click.option("--gpus-per-task", hidden=True)
+@click.option("--gres", hidden=True)
+@click.option("--gres-flags", hidden=True)
+@click.option("--hint", hidden=True)
+@click.option("-H", "--hold", is_flag=True, hidden=True)
+@click.option("--ignore-pbs", is_flag=True, hidden=True)
+@click.option("-i", "--input", hidden=True)
+@click.option("--kill-on-invalid-dep", hidden=True)
+@click.option("-L", "--licenses", hidden=True)
+@click.option("--mail-type", hidden=True)
+@click.option("--mail-user", hidden=True)
+@click.option("--mcs-label", hidden=True)
+@click.option("--mem", hidden=True)
+@click.option("--mem-bind", hidden=True)
+@click.option("--mem-per-cpu", hidden=True)
+@click.option("--mem-per-gpu", hidden=True)
+@click.option("--mincpus", hidden=True)
+@click.option("--network", hidden=True)
+@click.option("--nice", hidden=True)
+@click.option("-k", "--no-kill", is_flag=True, hidden=True)
+@click.option("--no-requeue", is_flag=True, hidden=True)
+@click.option("-F", "--nodefile", hidden=True)
+@click.option("-w", "--nodelist", hidden=True)
+@click.option("-N", "--nodes", hidden=True)
+@click.option("-n", "--ntasks", hidden=True)
+@click.option("--ntasks-per-core", hidden=True)
+@click.option("--ntasks-per-gpu", hidden=True)
+@click.option("--ntasks-per-node", hidden=True)
+@click.option("--ntasks-per-socket", hidden=True)
+@click.option("--open-mode", hidden=True)
+@click.option("-o", "--output", hidden=True)
+@click.option("-O", "--overcommit", is_flag=True, hidden=True)
+@click.option("-s", "--oversubscribe", is_flag=True, hidden=True)
+@click.option("--parsable", is_flag=True, hidden=True)
+@click.option("-p", "--partition", hidden=True)
+@click.option("--prefer", hidden=True)
+@click.option("--priority", hidden=True)
+@click.option("--profile", hidden=True)
+@click.option("--propagate", hidden=True)
+@click.option("-q", "--qos", hidden=True)
+@click.option("-Q", "--quiet", is_flag=True, hidden=True)
+@click.option("--reboot", is_flag=True, hidden=True)
+@click.option("--requeue", is_flag=True, hidden=True)
+@click.option("--reservation", hidden=True)
+@click.option("--resv-ports", hidden=True)
+@click.option("--segment", hidden=True)
+@click.option("--signal", hidden=True)
+@click.option("--sockets-per-node", hidden=True)
+@click.option("--spread-job", is_flag=True, hidden=True)
+@click.option("--stepmgr", is_flag=True, hidden=True)
+@click.option("--switches", hidden=True)
+@click.option("--test-only", is_flag=True, hidden=True)
+@click.option("--thread-spec", hidden=True)
+@click.option("--threads-per-core", hidden=True)
+@click.option("-t", "--time", hidden=True)
+@click.option("--time-min", hidden=True)
+@click.option("--tmp", hidden=True)
+@click.option("--tres-bind", hidden=True)
+@click.option("--tres-per-task", hidden=True)
+@click.option("--uid", hidden=True)
+@click.option("--usage", is_flag=True, hidden=True)
+@click.option("--use-min-nodes", is_flag=True, hidden=True)
+@click.option("-v", "--verbose", is_flag=True, multiple=True, hidden=True)
+@click.option("-V", "--version", is_flag=True, hidden=True)
+@click.option("-W", "--wait", is_flag=True, hidden=True)
+@click.option("--wait-all-nodes", hidden=True)
+@click.option("--wckey", hidden=True)
+@click.option("--wrap", hidden=True)
+@click.argument("script", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def submit(ctx, job_name, output, error, array, dependencies, repeat, command):
+def submit(ctx, job_name, array, dependencies, repeat, script, **kwargs):
     """Submit a job to the queue."""
     job_manager: JobManager = ctx.meta["job_manager"]
+    # reconstruct the command with kwargs, script, and args
+    command = []
+    for k, v in kwargs.items():
+        if v in (None, False):
+            # option was not provided
+            continue
+        if k in ("output", "error"):
+            # we ignore output and error options
+            continue
+        k = k.replace("_", "-")
+        if isinstance(v, str):
+            command.extend([f"--{k}", f"{v}"])
+        elif isinstance(v, bool):
+            command.append(f"--{k}")
+
+    command.extend(script)
+
     with job_manager.session as session:
         for _ in range(repeat):
             job = job_manager.submit_job(
