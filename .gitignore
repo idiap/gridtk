@@ -26,3 +26,5 @@ _work/
 changelog.md
 .pixi/
 .vscode
+logs
+jobs.sql3

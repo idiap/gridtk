@@ -199,18 +199,46 @@ class JobDependency:
 mapper_registry.map_imperatively(JobDependency, job_dependencies)
 
 
+def parse_array_indexes(indexes_str: str) -> list[int]:
+    def parse_range(range_str):
+        if ":" in range_str:
+            range_part, step = range_str.split(":")
+            start, end = map(int, range_part.split("-"))
+            step = int(step)
+            return list(range(start, end + 1, step))
+        else:
+            start, end = map(int, range_str.split("-"))
+            return list(range(start, end + 1))
+
+    def parse_segment(segment):
+        if "-" in segment:
+            return parse_range(segment)
+        else:
+            return [int(segment)]
+
+    # Remove any limit on simultaneous running tasks
+    if "%" in indexes_str:
+        indexes_str = indexes_str.split("%")[0]
+
+    segments = indexes_str.split(",")
+    result = []
+    for segment in segments:
+        result.extend(parse_segment(segment))
+
+    return result
+
+
 class Job(Base):
     __tablename__ = "jobs"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(30))
     command: Mapped[list] = mapped_column(ObjectValue)
-    output: Mapped[Path] = mapped_column(ObjectValue)  # path to the stdout file
-    error: Mapped[Path] = mapped_column(ObjectValue)  # path to the stderr file
+    logs_dir: Mapped[Path] = mapped_column(ObjectValue)
     grid_id: Mapped[Optional[int]]
     state: Mapped[Optional[str]] = mapped_column(String(30), default="UNKNOWN")
     exit_code: Mapped[Optional[str]]
     nodes: Mapped[Optional[str]]  # list of node names
-    is_array_job: Mapped[bool] = mapped_column(Boolean)
+    is_array_job: Mapped[bool]
     array_task_ids: Mapped[Optional[list[int]]] = mapped_column(ObjectValue)
     dependents: Mapped[list["Job"]] = relationship(
         "Job",
@@ -248,8 +276,7 @@ class Job(Base):
             f"grid_id={self.grid_id}, "
             f"state={self.state}, "
             f"exit_code={self.exit_code}, "
-            f"output={self.output}, "
-            f"error={self.error}, "
+            f"logs_dir={self.logs_dir}, "
             f"nodes={self.nodes}, "
             f"is_array_job={self.is_array_job}, "
             f"array_task_ids={self.array_task_ids}, "
@@ -257,6 +284,15 @@ class Job(Base):
             # f"dependencies={self.dependencies}, "
             f")"
         )
+
+    @property
+    def output_options(self):
+        # check if it is an array job
+        if self.is_array_job:
+            output = error = self.logs_dir / f"{self.name}.%A-%a.out"
+        else:
+            output = error = self.logs_dir / f"{self.name}.%j.out"
+        return output, error
 
     @property
     def command_in_bash(self) -> str:
@@ -288,14 +324,15 @@ class Job(Base):
 
         fh.flush()
         fh.close()  # close now to flush the file
+        output, error = self.output_options
         return [
             "sbatch",
             "--job-name",
             self.name,
             "--output",
-            str(self.output),
+            str(output),
             "--error",
-            str(self.error),
+            str(error),
         ] + command
 
     def submit(self, dependencies: dict[str, list["Job"]] = None):
@@ -310,28 +347,6 @@ class Job(Base):
         # find job ID from output
         # output is like b'Submitted batch job 123456789\n'
         self.grid_id = int(re.search("[0-9]+", output).group())
-        # right after job submission find the output and error paths
-        time.sleep(3)
-        output = subprocess.check_output(
-            ["scontrol", "show", "job", str(self.grid_id), "--json"],
-            text=True,
-        )
-        output = json.loads(output)
-        self.output = Path(output["jobs"][0]["standard_output"])
-        self.error = Path(output["jobs"][0]["standard_error"])
-        self.is_array_job = output["jobs"][0]["array_job_id"]["number"] > 0
-        if self.is_array_job:
-            # there is no reliable way of finding the number of tasks, so we have to do it manually
-            if "-a" in command:
-                array_option = command[command.index("-a") + 1]
-            else:
-                is_array_option = [v.startswith("--array") for v in command]
-                array_option = command[is_array_option.index(True)]
-                if "=" not in array_option:
-                    array_option = command[is_array_option.index(True) + 1]
-                array_option = array_option.replace("--array=", "")
-            array_task_ids = parse_job_ids(array_option)
-            self.array_task_ids = sorted(array_task_ids)
         return self.grid_id
 
     def cancel(self, delete_logs: bool = False):
@@ -356,35 +371,25 @@ class Job(Base):
         ), f"Unknown job state {self.state}, read from {job_status_dict}"
         return
 
-    def _path_for_array_task_id(self, path, array_task_id):
-        stem = path.stem
-        # we assume all log files for array files end with -%a.suffix
-        try:
-            stem_job, _ = stem.rsplit("-", 1)
-            return path.with_stem(f"{stem_job}-{array_task_id}")
-        except ValueError as e:
-            logger.warning(f"Could not parse array task id from {stem}, error was {e}")
-            return path
-
     @property
     def output_files(self):
+        output, _ = map(str, self.output_options)
         if not self.is_array_job:
-            return [self.output]
+            return [Path(output.replace("%j", str(self.grid_id)))]
         else:
             files = []
             for array_task_id in self.array_task_ids:
-                files.append(self._path_for_array_task_id(self.output, array_task_id))
-            return files
+                files.append(
+                    output.replace("%A", str(self.grid_id)).replace(
+                        "%a", str(array_task_id)
+                    )
+                )
+            return list(map(Path, files))
 
     @property
     def error_files(self):
-        if not self.is_array_job:
-            return [self.error]
-        else:
-            files = []
-            for array_task_id in self.array_task_ids:
-                files.append(self._path_for_array_task_id(self.error, array_task_id))
-            return files
+        # as of now error files are the same as output files but this could change.
+        return self.output_files
 
 
 class JobManager:
@@ -402,29 +407,22 @@ class JobManager:
             self._session = Session(self.engine)
         return self._session
 
-    def submit_job(
-        self, name, command, output, error, dependencies: dict[str, list[int]]
-    ):
-        output = output or error
-        error = error or output
-        if output is None:
-            # check if it is an array job
-            if has_array_options(command):
-                output = error = self.logs_dir / f"{name}.%A-%a.out"
-            else:
-                output = error = self.logs_dir / f"{name}.%j.out"
-        else:
-            output = self.logs_dir / output
-            error = self.logs_dir / error
+    def submit_job(self, name, command, array, dependencies: dict[str, list[int]]):
         # find dependencies
         obj_dependencies = defaultdict(list)
         for k, v in dependencies.items():
             obj_dependencies[k].extend(self.session.query(Job).filter(Job.id.in_(v)))
+
+        array_task_ids = None
+        if array:
+            command = ("--array", array) + tuple(command)
+            array_task_ids = parse_array_indexes(array)
         job = Job(
             name=name,
             command=command,
-            output=output,
-            error=error,
+            logs_dir=self.logs_dir,
+            is_array_job=bool(array),
+            array_task_ids=array_task_ids,
         )
         try:
             job.submit(dependencies=obj_dependencies)
@@ -591,8 +589,23 @@ gridtk submit -n 10 --time=24:00:00 --wrap="my_script.sh --my-option=value my-ar
     ),
 )
 @click.option("-J", "--job-name", help="Name of the job.", default="gridtk")
-@click.option("-o", "--output", help="Output file.", type=click.Path(path_type=Path))
-@click.option("-e", "--error", help="Error file.", type=click.Path(path_type=Path))
+@click.option(
+    "-o",
+    "--output",
+    help="Ignored, change --logs-dir in the upper command instead.",
+    type=click.Path(path_type=Path),
+)
+@click.option(
+    "-e",
+    "--error",
+    help="Ignored, change --logs-dir in the upper command instead.",
+    type=click.Path(path_type=Path),
+)
+@click.option(
+    "-a",
+    "--array",
+    help="Submit a job array, multiple jobs to be executed with identical parameters.",
+)
 @click.option(
     "-d",
     "--dependency",
@@ -606,10 +619,9 @@ gridtk submit -n 10 --time=24:00:00 --wrap="my_script.sh --my-option=value my-ar
     type=click.INT,
     help="Submits the job N times. Each job will depend on the job before.",
 )
-@click.option("--print-id", is_flag=True, help="Print the id of the submitted job.")
 @click.argument("command", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def submit(ctx, job_name, output, error, dependencies, repeat, print_id, command):
+def submit(ctx, job_name, output, error, array, dependencies, repeat, command):
     """Submit a job to the queue."""
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager.session as session:
@@ -617,12 +629,10 @@ def submit(ctx, job_name, output, error, dependencies, repeat, print_id, command
             job = job_manager.submit_job(
                 name=job_name,
                 command=command,
-                output=output,
-                error=error,
+                array=array,
                 dependencies=dependencies,
             )
-            if print_id:
-                click.echo(job.id)
+            click.echo(job.id)
             dependencies["afterany:"].append(job.id)
         session.commit()
 
@@ -695,7 +705,7 @@ def job_filters(f_py=None, default_states=None):
             default=default_states,
             help="Selects jobs based on their states separated by comma. Possible values are "
             + ", ".join([f"{v} ({k})" for k, v in JOB_STATES_MAPPING.items()])
-            + ".",
+            + " and ALL.",
             callback=states_callback,
         )(function)
         function = click.option(
@@ -754,7 +764,9 @@ def list_jobs(ctx: click.Context, job_ids, states, names):
             table["job-name"].append(job.name)
             table["output"].append(
                 job_manager.logs_dir
-                / job.output.resolve().relative_to(job_manager.logs_dir.resolve())
+                / job.output_files[0]
+                .resolve()
+                .relative_to(job_manager.logs_dir.resolve())
             )
             table["dependencies"].append(
                 ",".join([str(dep_job) for dep_job in job.dependencies])
