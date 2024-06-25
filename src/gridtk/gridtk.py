@@ -21,6 +21,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+
 from collections import defaultdict
 from pathlib import Path
 from sqlite3 import Connection as SQLite3Connection
@@ -28,17 +29,10 @@ from typing import Optional
 
 import click
 import sqlalchemy
+
 from clapper.click import AliasedGroup
 from loguru import logger
-from sqlalchemy import (
-    Column,
-    ForeignKey,
-    Integer,
-    String,
-    Table,
-    create_engine,
-    event,
-)
+from sqlalchemy import Column, ForeignKey, Integer, String, Table, create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
 from sqlalchemy.orm import (
@@ -917,7 +911,7 @@ def report(ctx, job_ids, states, names, array_idx):
                     )
             output_files, error_files = job.output_files, job.error_files
             if array_idx is not None:
-                array_idx = int(array_idx)
+                array_idx = job.array_task_ids.index(int(array_idx))
                 output_files = output_files[array_idx : array_idx + 1]
                 error_files = error_files[array_idx : array_idx + 1]
             for output, error in zip(output_files, error_files):
