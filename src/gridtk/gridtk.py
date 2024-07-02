@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2024 Idiap Research Institute <contact@idiap.ch>
+# SPDX-FileContributor: Amir Mohammadi  <amir.mohammadi@idiap.ch>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Implements a Slurm job manager. Jobs are kept track of in an SQL database
 and logs are written to a default logs folder.
 
@@ -21,13 +25,15 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+
 from collections import defaultdict
 from pathlib import Path
 from sqlite3 import Connection as SQLite3Connection
-from typing import Optional
+from typing import Iterable, Optional
 
 import click
 import sqlalchemy
+
 from clapper.click import AliasedGroup
 from loguru import logger
 from sqlalchemy import Column, ForeignKey, Integer, String, Table, create_engine, event
@@ -55,7 +61,7 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor.close()
 
 
-def update_job_statuses(grid_ids: list[int]) -> dict[int, dict]:
+def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
     status = dict()
     output = subprocess.check_output(
         ["sacct", "-j", ",".join([str(x) for x in grid_ids]), "--json"],
@@ -200,9 +206,9 @@ class Job(Base):
     array_task_ids: Mapped[Optional[list[int]]] = mapped_column(ObjectValue)
     dependencies_jobdependency: Mapped[list[JobDependency]] = relationship(
         JobDependency,
-        primaryjoin=id == JobDependency.job_id,
+        primaryjoin=id == JobDependency.job_id,  # type: ignore[attr-defined]
         viewonly=True,
-        order_by=JobDependency.waited_for_job_id,
+        order_by=JobDependency.waited_for_job_id,  # type: ignore[attr-defined]
     )
     dependencies_ids: Mapped[list[int]] = association_proxy(
         "dependencies_jobdependency", "waited_for_job_id"
@@ -443,7 +449,7 @@ dependencies: {dependencies}"""
             ) from e
         return job
 
-    def update_jobs(self):
+    def update_jobs(self) -> None:
         """Update the status of all jobs."""
         jobs_by_grid_id: dict[int, Job] = dict()
         query = self.session.query(Job)
@@ -713,7 +719,15 @@ gridtk submit --- python my_code.py
 @click.option("--wrap", hidden=True)
 @click.argument("script", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def submit(ctx, job_name, array, dependencies, repeat, script, **kwargs):
+def submit(
+    ctx: click.Context,
+    job_name: str,
+    array: str,
+    dependencies: str,
+    repeat: int,
+    script: str,
+    **kwargs,
+):
     """Submit a job to the queue."""
     job_manager: JobManager = ctx.meta["job_manager"]
     # reconstruct the command with kwargs, script, and args
@@ -766,8 +780,8 @@ def parse_job_ids(job_ids: str) -> list[int]:
                 final_job_ids.extend(parse_job_ids(job_id))
             return final_job_ids
         elif "-" in job_ids:
-            start, end = job_ids.split("-")
-            return list(range(int(start), int(end) + 1))
+            start, end_str = job_ids.split("-")
+            return list(range(int(start), int(end_str) + 1))
         elif "+" in job_ids:
             start, length = job_ids.split("+")
             end = int(start) + int(length)
@@ -786,9 +800,9 @@ def parse_states(states: str) -> list[str]:
     states = states.upper()
     if states == "ALL":
         return list(JOB_STATES_MAPPING.values())
-    states = states.split(",")
+    states_split = states.split(",")
     final_states = []
-    for state in states:
+    for state in states_split:
         state = JOB_STATES_MAPPING.get(state, state)
         if state not in JOB_STATES_MAPPING.values():
             raise click.BadParameter(f"Invalid state: {state}")
@@ -841,7 +855,9 @@ def job_filters(f_py=None, default_states=None):
 @cli.command()
 @job_filters(default_states="BF,CA,F,NF,OOM,TO")
 @click.pass_context
-def resubmit(ctx, job_ids, states, names):
+def resubmit(
+    ctx: click.Context, job_ids: list[int], states: list[str], names: list[str]
+):
     """Resubmit a job to the queue."""
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
@@ -854,7 +870,7 @@ def resubmit(ctx, job_ids, states, names):
 @cli.command()
 @job_filters
 @click.pass_context
-def stop(ctx, job_ids, states, names):
+def stop(ctx: click.Context, job_ids: list[int], states: list[str], names: list[str]):
     """Stop a job from running."""
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
@@ -867,7 +883,9 @@ def stop(ctx, job_ids, states, names):
 @cli.command(name="list")
 @job_filters
 @click.pass_context
-def list_jobs(ctx: click.Context, job_ids, states, names):
+def list_jobs(
+    ctx: click.Context, job_ids: list[int], states: list[str], names: list[str]
+):
     """List jobs in the queue, similar to sacct and squeue."""
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
@@ -902,7 +920,13 @@ def list_jobs(ctx: click.Context, job_ids, states, names):
     help="Array index to see the logs for only one item of an array job.",
 )
 @click.pass_context
-def report(ctx, job_ids, states, names, array_idx):
+def report(
+    ctx: click.Context,
+    job_ids: list[int],
+    states: list[str],
+    names: list[str],
+    array_idx: str | None,
+):
     """Report on jobs in the queue."""
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
@@ -921,9 +945,9 @@ def report(ctx, job_ids, states, names, array_idx):
                     )
             output_files, error_files = job.output_files, job.error_files
             if array_idx is not None:
-                array_idx = job.array_task_ids.index(int(array_idx))
-                output_files = output_files[array_idx : array_idx + 1]
-                error_files = error_files[array_idx : array_idx + 1]
+                real_array_idx = job.array_task_ids.index(int(array_idx))
+                output_files = output_files[real_array_idx : real_array_idx + 1]
+                error_files = error_files[real_array_idx : real_array_idx + 1]
             for output, error in zip(output_files, error_files):
                 report_text += f"Output file: {output}\n"
                 if output.exists():
@@ -939,7 +963,7 @@ def report(ctx, job_ids, states, names, array_idx):
 @cli.command()
 @job_filters
 @click.pass_context
-def delete(ctx, job_ids, states, names):
+def delete(ctx: click.Context, job_ids: list[int], states: list[str], names: list[str]):
     """Delete a job from the queue."""
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:

@@ -1,9 +1,17 @@
+# SPDX-FileCopyrightText: 2024 Idiap Research Institute <contact@idiap.ch>
+# SPDX-FileContributor: Amir Mohammadi  <amir.mohammadi@idiap.ch>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
 import json
 import traceback
+
 from unittest.mock import Mock, patch
 
 import pytest
+
 from click.testing import CliRunner
+
 from gridtk.gridtk import cli, job_ids_from_dep_str, replace_job_ids_in_dep_str
 
 
@@ -13,7 +21,7 @@ def runner():
 
 
 def test_extract_job_ids_from_dep_str():
-    """Test extract job ids from dependency string"""
+    """Test extract job ids from dependency string."""
     for dep_str, expected_result, expected_replaced in [
         (None, [], None),
         ("", [], ""),
@@ -43,7 +51,7 @@ def test_extract_job_ids_from_dep_str():
 
 
 def assert_click_runner_result(result, exit_code=0, exception_type=None):
-    """Helper for asserting click runner results"""
+    """Helper for asserting click runner results."""
     m = "Click command exited with code `{}' and exception:\n{}" "\nThe output was:\n{}"
     exception = (
         "None"
@@ -347,7 +355,7 @@ def test_submit_with_dependencies(mock_check_output, runner):
         assert_click_runner_result(result)
         assert (
             result.output
-            == f"Deleted job 1 with grid ID {first_grid_id+10}\nDeleted job 2 with grid ID {second_grid_id+10}\n"
+            == f"Deleted job 1 with grid ID {first_grid_id + 10}\nDeleted job 2 with grid ID {second_grid_id + 10}\n"
         )
         mock_check_output.assert_called_with(["scancel", str(second_grid_id + 10)])
 
@@ -399,7 +407,7 @@ def test_submit_with_dependencies(mock_check_output, runner):
                 "--error",
                 "logs/gridtk.%j.out",
                 "--dependency",
-                f"{first_grid_id+10}:{second_grid_id+10}",
+                f"{first_grid_id + 10}:{second_grid_id + 10}",
                 "script.sh",
             ],
             text=True,
