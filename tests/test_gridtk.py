@@ -12,12 +12,58 @@ import pytest
 
 from click.testing import CliRunner
 
-from gridtk.gridtk import cli, job_ids_from_dep_str, replace_job_ids_in_dep_str
+from gridtk.__main__ import cli
+from gridtk.tools import (
+    job_ids_from_dep_str,
+    parse_array_indexes,
+    replace_job_ids_in_dep_str,
+)
 
 
 @pytest.fixture
 def runner():
     return CliRunner()
+
+
+def test_parse_array_indexes():
+    # Simple range
+    assert parse_array_indexes("0-15") == list(range(0, 16))
+
+    # Multiple values (combination of single indexes and ranges)
+    assert parse_array_indexes("0,6,16-32") == [0, 6] + list(range(16, 33))
+
+    # Step function within a range
+    assert parse_array_indexes("0-15:4") == [0, 4, 8, 12]
+
+    # Maximum number of simultaneously running tasks (should ignore %)
+    assert parse_array_indexes("0-15%4") == list(range(0, 16))
+
+    # Combination of ranges and steps
+    assert parse_array_indexes("0-4,10-20:5") == [0, 1, 2, 3, 4, 10, 15, 20]
+
+    # Complex case with range, steps, and multiple values
+    assert parse_array_indexes("0,2-6:2,10-12") == [0, 2, 4, 6, 10, 11, 12]
+
+    # Minimum index value is 0
+    assert parse_array_indexes("0,1,2-4") == [0, 1, 2, 3, 4]
+
+    # Maximum index value one less than MaxArraySize (assuming MaxArraySize is 50)
+    assert parse_array_indexes("45-49") == [45, 46, 47, 48, 49]
+
+    # Mixed single indexes, ranges, and steps with %
+    assert parse_array_indexes("0,2-8:2,10-14%3") == [0, 2, 4, 6, 8, 10, 11, 12, 13, 14]
+
+    # Empty string should raise a ValueError
+    with pytest.raises(ValueError):
+        parse_array_indexes("")
+
+    # Handling invalid step (should raise ValueError)
+    with pytest.raises(ValueError):
+        parse_array_indexes("1-5:a")
+
+    # Non-integer segment (should raise ValueError)
+    with pytest.raises(ValueError):
+        parse_array_indexes("1,2,three")
 
 
 def test_extract_job_ids_from_dep_str():

@@ -46,43 +46,23 @@ doc = [
 test = ["pytest", "pytest-cov", "coverage"]
 
 [project.scripts]
-jman = "gridtk.script.jman:main"
-gridtk = "gridtk.gridtk:cli"
+gridtk = "gridtk.cli:cli"
 
-# access to SGE utilities from package installation
-qconf = "gridtk.script.grid:main"
-qsub = "gridtk.script.grid:main"
-qdel = "gridtk.script.grid:main"
-qstat = "gridtk.script.grid:main"
-qrsh = "gridtk.script.grid:main"
-qhost = "gridtk.script.grid:main"
 
 [tool.pixi.project]
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-arm64"]
 
-[tool.pixi.system-requirements]
-linux = "4.19.0"
-
 [tool.pixi.dependencies]
 clapper = "*"
 sqlalchemy = ">=2.0.30,<2.1"
-ipykernel = ">=6.29.3,<6.30"
-ipdb = ">=0.13.13,<0.14"
 tabulate = ">=0.9.0,<0.10"
-jq = ">=1.7.1,<1.8"
-loguru = ">=0.7.2,<0.8"
 pytest = ">=8.2.0,<8.3"
 pytest-mock = ">=3.14.0,<3.15"
+click = ">=8.1.7,<8.2"
 
-[tool.pixi.feature.self.pypi-dependencies]
-gridtk = { path = ".", editable = true }
-
-[tool.pixi.feature.py311.dependencies]
-python = "~=3.11.0"
-
-[tool.pixi.feature.py312.dependencies]
-python = "~=3.12.0"
+[tool.pixi.pypi-dependencies]
+gridtk = { path = ".", editable = true, extras = ["qa", "doc", "test"] }
 
 [tool.pixi.feature.qa.dependencies]
 pre-commit = "*"
@@ -92,7 +72,6 @@ reuse = "*"
 [tool.pixi.feature.qa.tasks]
 qa-install = "pre-commit install"
 qa = "pre-commit run --all-files"
-qa-ci = "pre-commit run --all-files --show-diff-on-failure --verbose"
 
 [tool.pixi.feature.doc.dependencies]
 sphinx = "*"
@@ -103,37 +82,21 @@ sphinx-copybutton = "*"
 sphinx-inline-tabs = "*"
 
 [tool.pixi.feature.doc.tasks]
-doc-clean = "rm -rf doc/api && rm -rf html"
-doc = "sphinx-build -aEW doc html"
-doctest = "sphinx-build -aEb doctest doc html/doctest"
+doc = "rm -rf doc/api && rm -rf html && sphinx-build -aEW doc html"
 
 [tool.pixi.feature.test.dependencies]
 pytest = "*"
 pytest-cov = "*"
 
+[tool.pixi.feature.debug.dependencies]
+pdbpp = "*"
+
 [tool.pixi.feature.test.tasks]
 test = "pytest -sv tests/"
 test-ci = "pytest -sv --cov-report 'html:html/coverage' --cov-report 'xml:coverage.xml' --junitxml 'junit-coverage.xml' --ignore '.profile' tests/"
 
-[tool.pixi.feature.build.dependencies]
-hatch = "*"
-versioningit = "*"
-twine = "*"
-
-[tool.pixi.feature.build.tasks]
-build = "hatch build"
-check = "twine check dist/*"
-upload = "twine upload dist/*"
-
-[tool.pixi.feature.dev.dependencies]
-pdbpp = "*"
-uv = "*"
-
 [tool.pixi.environments]
-default = { features = ["qa", "build", "doc", "test", "dev", "py312", "self"] }
-qa-ci = { features = ["qa", "py312"] }
-build-ci = { features = ["build", "py312"] }
-test-ci-alternative = { features = ["test", "py311", "self"] }
+default = { features = ["qa", "doc", "test", "debug"] }
 
 [tool.hatch.version]
 source = "versioningit"
@@ -164,12 +127,12 @@ packages = ["src/gridtk"]
 
 [tool.isort]
 profile = "black"
-line_length = 80
+line_length = 88
 order_by_type = true
 lines_between_types = 1
 
 [tool.black]
-line-length = 80
+line-length = 88
 
 [tool.pytest.ini_options]
 addopts = ["--cov=gridtk", "--cov-report=term-missing", "--import-mode=append"]
