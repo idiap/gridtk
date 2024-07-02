@@ -1,105 +1,410 @@
-from pathlib import Path
+import json
+import traceback
 from unittest.mock import Mock, patch
 
 import pytest
-
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from gridtk.gridtk import Job, JobManager, update_job_statuses
-
-# Setup for Database tests
-# @pytest.fixture
-# def engine():
-#     return create_engine("sqlite:///:memory:")
-
-
-# @pytest.fixture
-# def session(engine):
-#     from gridtk.gridtk import Base  # Assuming Base is in your script
-
-#     Base.metadata.create_all(engine)
-#     Session = sessionmaker(bind=engine)
-#     return Session()
+from click.testing import CliRunner
+from gridtk.gridtk import cli, job_ids_from_dep_str, replace_job_ids_in_dep_str
 
 
 @pytest.fixture
-def job_manager(tmp_path):
-    database_path = tmp_path / "jobs.sql3"
-    logs_dir = tmp_path / "logs"
-    return JobManager(database=database_path, logs_dir=logs_dir)
+def runner():
+    return CliRunner()
 
 
-@pytest.fixture
-def batch_script(tmp_path):
-    path = tmp_path / "hello_world.sh"
-    path.write_text('#!/bin/bash\necho "Hello, World!"')
-    return str(path)
-
-
-# Test JobManager Initialization
-def test_job_manager_init(job_manager):
-    assert job_manager.database.exists()
-    assert job_manager.logs_dir.is_dir()
-
-
-def check_output_side_effect(*args, **kwargs):
-    if "sbatch" in args[0]:
-        return "Submitted batch job 12345\n"
-    elif "scontrol" in args[0]:
-        return '{"jobs": [{"job_id": "12345", "standard_output": "/path/to/output", "standard_error": "/path/to/error", "array_job_id": {"number": 0}}]}'
-    elif "sacct" in args[0]:
-        # Simulate sacct output for job status check
-        return '{"jobs": [{"job_id": "12345", "state": "RUNNING"}]}'
-    raise ValueError("Unhandled command")
-
-
-# Test Job Submission
-@patch("subprocess.check_call")
-def test_submit_job(mock_check_output, job_manager, batch_script):
-    mock_check_output.side_effect = check_output_side_effect
-    # with job_manager.session as s:
-    for job_id, command in [
-        (1, ["---", "echo", "Hello, World!"]),
-        (2, ['--wrap="echo "Hello, World!""']),
-        (3, [batch_script]),
+def test_extract_job_ids_from_dep_str():
+    """Test extract job ids from dependency string"""
+    for dep_str, expected_result, expected_replaced in [
+        (None, [], None),
+        ("", [], ""),
+        ("20", [20], "1020"),
+        ("20,21", [20, 21], "1020,1021"),
+        (
+            "afterok:20:21:22,afterany:23:24:25:26",
+            [20, 21, 22, 23, 24, 25, 26],
+            "afterok:1020:1021:1022,afterany:1023:1024:1025:1026",
+        ),
+        (
+            "after:20+5:21+5,after:23+10",
+            [20, 21, 23],
+            "after:1020+5:1021+5,after:1023+10",
+        ),
+        ("afterok:20:21?afterany:23", [20, 21, 23], "afterok:1020:1021?afterany:1023"),
+        (
+            "after:20+15:21+30?afterany:23",
+            [20, 21, 23],
+            "after:1020+15:1021+30?afterany:1023",
+        ),
     ]:
-        job = job_manager.submit_job(
-            name="test_job",
-            command=command,
-            output="test_job.out",
-            error="test_job.err",
-            dependencies={},
-        )
-        assert job.id == job_id
-        # assert job_info["grid_id"] == 12345
-        assert job.name == "test_job"
-        assert job.output.read_text() == "Hello, World!\n"
+        result = job_ids_from_dep_str(dep_str)
+        assert result == expected_result
+        replaced_deps = replace_job_ids_in_dep_str(dep_str, [v + 1000 for v in result])
+        assert replaced_deps == expected_replaced
 
 
-# Test Job Update Status
-def test_update_job_statuses():
-    with patch("subprocess.check_output") as mock_check_output:
-        mock_check_output.return_value = (
-            '{"jobs": [{"job_id": "12345", "state": "COMPLETED"}]}'
-        )
-        status = update_job_statuses([12345])
-        assert status[12345]["state"] == "COMPLETED"
+def assert_click_runner_result(result, exit_code=0, exception_type=None):
+    """Helper for asserting click runner results"""
+    m = "Click command exited with code `{}' and exception:\n{}" "\nThe output was:\n{}"
+    exception = (
+        "None"
+        if result.exc_info is None
+        else "".join(traceback.format_exception(*result.exc_info))
+    )
+    m = m.format(result.exit_code, exception, result.output)
+    assert result.exit_code == exit_code, m
+    if exit_code == 0:
+        assert not result.exception, m
+    if exception_type is not None:
+        assert isinstance(result.exception, exception_type), m
 
 
-# Test Job Cancel
 @patch("subprocess.check_output")
-def test_cancel_job(mock_check_output, job_manager, session):
-    job = Job(name="test_cancel", command=["sleep", "10"])
-    job.grid_id = 12345  # Mocking grid ID as if job was submitted
-    session.add(job)
-    session.commit()
+def test_submit_bash_script(mock_check_output, runner):
+    mock_check_output.return_value = _sbatch_output(123456789)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["submit", "-J", "jobname", "my_script.sh"])
 
-    job_manager.delete_jobs(job_ids=[job.id])
-    mock_check_output.assert_called_with(["scancel", "12345"])
+        assert_click_runner_result(result)
+        assert "1" in result.output
+
+        mock_check_output.assert_called_with(
+            [
+                "sbatch",
+                "--job-name",
+                "jobname",
+                "--output",
+                "logs/jobname.%j.out",
+                "--error",
+                "logs/jobname.%j.out",
+                "my_script.sh",
+            ],
+            text=True,
+        )
 
 
-# More tests can be added following similar structure for other methods
+@patch("subprocess.check_output")
+def test_submit_wrap(mock_check_output, runner):
+    mock_check_output.return_value = _sbatch_output(123456789)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["submit", "--wrap=hostname"])
+
+        assert_click_runner_result(result)
+        assert "1" in result.output
+
+    mock_check_output.assert_called_with(
+        [
+            "sbatch",
+            "--job-name",
+            "gridtk",
+            "--output",
+            "logs/gridtk.%j.out",
+            "--error",
+            "logs/gridtk.%j.out",
+            "--wrap",
+            "hostname",
+        ],
+        text=True,
+    )
+
+
+@patch("subprocess.check_output")
+def test_submit_triple_dash(mock_check_output: Mock, runner):
+    mock_check_output.return_value = _sbatch_output(123456789)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["submit", "---", "hostname"])
+
+        assert_click_runner_result(result)
+        assert "1" in result.output
+
+    args = mock_check_output.call_args.args
+    assert len(args) == 1
+    assert args[0][:-1] == [
+        "sbatch",
+        "--job-name",
+        "gridtk",
+        "--output",
+        "logs/gridtk.%j.out",
+        "--error",
+        "logs/gridtk.%j.out",
+    ]
+    assert mock_check_output.call_args.kwargs == {"text": True}
+
+
+def _sbatch_output(job_id):
+    return f"Submitted batch job {job_id}\n"
+
+
+def _submit_job(*, runner, mock_check_output, job_id):
+    mock_check_output.return_value = _sbatch_output(job_id)
+    result = runner.invoke(cli, ["submit", "--wrap=sleep"])
+    assert_click_runner_result(result)
+    return result
+
+
+def _pending_job_sacct_json(job_id):
+    return json.dumps(
+        {
+            "jobs": [
+                {
+                    "job_id": job_id,
+                    "state": {"current": ["PENDING"], "reason": "Unassigned"},
+                    "nodes": "None assigned",
+                    "derived_exit_code": {
+                        "status": ["SUCCESS"],
+                        "return_code": {
+                            "number": 0,
+                        },
+                    },
+                }
+            ]
+        }
+    )
+
+
+def _failed_job_sacct_json(job_id):
+    return json.dumps(
+        {
+            "jobs": [
+                {
+                    "job_id": job_id,
+                    "state": {"current": ["FAILED"], "reason": "None"},
+                    "nodes": "node001",
+                    "derived_exit_code": {
+                        "status": ["SUCCESS"],
+                        "return_code": {"set": True, "infinite": False, "number": 0},
+                    },
+                }
+            ]
+        }
+    )
+
+
+@patch("subprocess.check_output")
+def test_list_jobs(mock_check_output, runner):
+    with runner.isolated_filesystem():
+        submit_job_id = 9876543
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
+        )
+
+        mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
+        result = runner.invoke(cli, ["list"])
+        assert_click_runner_result(result)
+        assert str(submit_job_id) in result.output
+        mock_check_output.assert_called_with(
+            ["sacct", "-j", str(submit_job_id), "--json"], text=True
+        )
+
+
+@patch("subprocess.check_output")
+def test_report_job(mock_check_output, runner):
+    with runner.isolated_filesystem():
+        submit_job_id = 9876543
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
+        )
+
+        mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
+        result = runner.invoke(cli, ["report"])
+        assert_click_runner_result(result)
+        assert str(submit_job_id) in result.output
+        assert result.output.startswith(
+            "Job ID: 1\nName: gridtk\nState: PENDING (0)\nNodes: Unassigned\nSubmitted command: ['sbatch', '--job-name', 'gridtk'"
+        )
+        assert "Output file: /tmp/" in result.output
+        mock_check_output.assert_called_with(
+            ["sacct", "-j", str(submit_job_id), "--json"], text=True
+        )
+
+
+@patch("subprocess.check_output")
+def test_stop_jobs(mock_check_output, runner):
+    with runner.isolated_filesystem():
+        submit_job_id = 9876543
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
+        )
+
+        mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
+        result = runner.invoke(cli, ["stop", "--name", "gridtk"])
+        assert_click_runner_result(result)
+        assert result.output == "Stopped 1\n"
+        mock_check_output.assert_called_with(["scancel", str(submit_job_id)])
+
+
+@patch("subprocess.check_output")
+def test_delete_jobs(mock_check_output, runner):
+    with runner.isolated_filesystem():
+        submit_job_id = 9876543
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
+        )
+
+        mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
+        result = runner.invoke(cli, ["delete"])
+        assert_click_runner_result(result)
+        assert result.output == f"Deleted job 1 with grid ID {submit_job_id}\n"
+        mock_check_output.assert_called_with(["scancel", str(submit_job_id)])
+
+
+@patch("subprocess.check_output")
+def test_resubmit_jobs(mock_check_output, runner):
+    # this test might fail on NFS drives or Google Drive or Dropbox synced folders
+    # see: https://stackoverflow.com/questions/29244788/error-disk-i-o-error-on-a-newly-created-database
+    # see: https://stackoverflow.com/questions/47540607/disk-i-o-error-with-sqlite3-in-python-3-when-writing-to-a-database
+    with runner.isolated_filesystem() as tmpdir:
+        submit_job_id = 9876543
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
+        )
+
+        mock_check_output.side_effect = [
+            _failed_job_sacct_json(submit_job_id),  # sacct
+            "",  # scancel
+            _sbatch_output(submit_job_id),  # sbatch
+        ]
+        result = runner.invoke(cli, ["resubmit"])
+        assert_click_runner_result(result)
+        assert result.output == "Resubmitted job 1\n"
+        mock_check_output.assert_called_with(
+            [
+                "sbatch",
+                "--job-name",
+                "gridtk",
+                "--output",
+                f"{tmpdir}/logs/gridtk.%j.out",
+                "--error",
+                f"{tmpdir}/logs/gridtk.%j.out",
+                "--wrap",
+                "sleep",
+            ],
+            text=True,
+        )
+
+
+@patch("subprocess.check_output")
+def test_submit_with_dependencies(mock_check_output, runner):
+    with runner.isolated_filesystem() as tmpdir:
+        first_grid_id = 1111
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=first_grid_id
+        )
+
+        second_grid_id = 1112
+        mock_check_output.return_value = _sbatch_output(second_grid_id)
+        result = runner.invoke(cli, ["submit", "--dependency", "1", "script.sh"])
+        assert_click_runner_result(result)
+        mock_check_output.assert_called_with(
+            [
+                "sbatch",
+                "--job-name",
+                "gridtk",
+                "--output",
+                "logs/gridtk.%j.out",
+                "--error",
+                "logs/gridtk.%j.out",
+                "--dependency",
+                f"{first_grid_id}",
+                "script.sh",
+            ],
+            text=True,
+        )
+
+        # test if dependent jobs get resubmitted too
+        mock_check_output.side_effect = [
+            _failed_job_sacct_json(first_grid_id),  # sacct
+            "",  # scancel
+            _sbatch_output(first_grid_id + 10),  # sbatch
+            "",  # scancel
+            _sbatch_output(second_grid_id + 10),  # sbatch
+        ]
+        result = runner.invoke(cli, ["resubmit", "--jobs", "1"])
+        assert_click_runner_result(result)
+        assert result.output == "Resubmitted job 1\nResubmitted job 2\n"
+        mock_check_output.assert_called_with(
+            [
+                "sbatch",
+                "--job-name",
+                "gridtk",
+                "--output",
+                f"{tmpdir}/logs/gridtk.%j.out",
+                "--error",
+                f"{tmpdir}/logs/gridtk.%j.out",
+                "--dependency",
+                str(first_grid_id + 10),
+                "script.sh",
+            ],
+            text=True,
+        )
+
+        # test if dependent jobs get deleted too
+        mock_check_output.side_effect = [
+            _failed_job_sacct_json(first_grid_id + 10),  # sacct
+            "",  # scancel
+            "",  # scancel
+        ]
+        result = runner.invoke(cli, ["delete", "--jobs", "1"])
+        assert_click_runner_result(result)
+        assert (
+            result.output
+            == f"Deleted job 1 with grid ID {first_grid_id+10}\nDeleted job 2 with grid ID {second_grid_id+10}\n"
+        )
+        mock_check_output.assert_called_with(["scancel", str(second_grid_id + 10)])
+
+        # what happens if you depend on job that doesn't exist?
+        mock_check_output.return_value = _sbatch_output(second_grid_id)
+        result = runner.invoke(cli, ["submit", "--dependency", "0", "script.sh"])
+        assert_click_runner_result(result, exit_code=1, exception_type=ValueError)
+
+        # test submit with --repeat 2
+        mock_check_output.side_effect = [
+            _sbatch_output(first_grid_id),
+            _sbatch_output(second_grid_id),
+        ]
+        result = runner.invoke(cli, ["submit", "--repeat", "2", "script.sh"])
+        assert_click_runner_result(result)
+        assert result.output == "1\n2\n"
+        mock_check_output.assert_called_with(
+            [
+                "sbatch",
+                "--job-name",
+                "gridtk",
+                "--output",
+                "logs/gridtk.%j.out",
+                "--error",
+                "logs/gridtk.%j.out",
+                "--dependency",
+                f"{first_grid_id}",
+                "script.sh",
+            ],
+            text=True,
+        )
+
+        third_grid_id = first_grid_id + 2
+        mock_check_output.side_effect = [
+            _sbatch_output(first_grid_id + 10),
+            _sbatch_output(second_grid_id + 10),
+            _sbatch_output(third_grid_id + 10),
+        ]
+        result = runner.invoke(cli, ["submit", "--repeat", "3", "script.sh"])
+        assert_click_runner_result(result)
+        assert result.output == "3\n4\n5\n"
+        mock_check_output.assert_called_with(
+            [
+                "sbatch",
+                "--job-name",
+                "gridtk",
+                "--output",
+                "logs/gridtk.%j.out",
+                "--error",
+                "logs/gridtk.%j.out",
+                "--dependency",
+                f"{first_grid_id+10}:{second_grid_id+10}",
+                "script.sh",
+            ],
+            text=True,
+        )
+
 
 if __name__ == "__main__":
     import sys

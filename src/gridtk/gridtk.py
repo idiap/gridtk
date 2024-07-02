@@ -21,7 +21,6 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-
 from collections import defaultdict
 from pathlib import Path
 from sqlite3 import Connection as SQLite3Connection
@@ -29,12 +28,11 @@ from typing import Optional
 
 import click
 import sqlalchemy
-
 from clapper.click import AliasedGroup
 from loguru import logger
 from sqlalchemy import Column, ForeignKey, Integer, String, Table, create_engine, event
 from sqlalchemy.engine import Engine
-from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
+from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -102,37 +100,6 @@ sacct only retuns these states https://slurm.schedmd.com/sacct.html#lbAG
 """
 
 
-def has_array_options(command):
-    return "-a" in command or any(v.startswith("--array") for v in command)
-
-
-def eagerload_prox(loader, prox):
-    # given eagerload_prox(joinedload, User.keywords)
-
-    # User.user_keyword_associations
-    first_attribute = getattr(prox.owning_class, prox.target_collection)
-
-    # joinedload(User.keywords)
-    step1 = loader(first_attribute)
-
-    # UserKeywordAssociation
-    middle_class = first_attribute.property.mapper.class_
-
-    # UserKeywordAssociation.keyword
-    second_attribute = getattr(middle_class, prox.value_attr)
-
-    # joinedload().joinedload
-    eagerload_callable = getattr(step1, loader.__name__)
-
-    # joinedload().joinedload(UserKeywordAssociation.keyword)
-    step2 = eagerload_callable(second_attribute)
-
-    return step2
-
-
-mapper_registry = registry()
-
-
 class ObjectValue(TypeDecorator):
     impl = String
 
@@ -158,6 +125,9 @@ class ObjectValue(TypeDecorator):
         return value
 
 
+mapper_registry = registry()
+
+
 class Base(DeclarativeBase):
     pass
 
@@ -167,7 +137,6 @@ job_dependencies = Table(
     Base.metadata,
     Column("job_id", Integer, ForeignKey("jobs.id"), primary_key=True),
     Column("waited_for_job_id", Integer, ForeignKey("jobs.id"), primary_key=True),
-    Column("dep_type", String(30), default="afterany:"),
 )
 
 
@@ -180,9 +149,7 @@ class JobDependency:
     """
 
     def __repr__(self):
-        return (
-            f"<JobDependency {self.job_id} -> {self.dep_type}{self.waited_for_job_id}>"
-        )
+        return f"<JobDependency {self.job_id} -> {self.waited_for_job_id}>"
 
 
 # Mapping the class to the table
@@ -224,37 +191,28 @@ class Job(Base):
     name: Mapped[str] = mapped_column(String(30))
     command: Mapped[list] = mapped_column(ObjectValue)
     logs_dir: Mapped[Path] = mapped_column(ObjectValue)
+    is_array_job: Mapped[bool]
+    dependencies_str: Mapped[Optional[str]] = mapped_column(String(2048))
     grid_id: Mapped[Optional[int]]
     state: Mapped[Optional[str]] = mapped_column(String(30), default="UNKNOWN")
     exit_code: Mapped[Optional[str]]
     nodes: Mapped[Optional[str]]  # list of node names
-    is_array_job: Mapped[bool]
     array_task_ids: Mapped[Optional[list[int]]] = mapped_column(ObjectValue)
+    dependencies_jobdependency: Mapped[list[JobDependency]] = relationship(
+        JobDependency,
+        primaryjoin=id == JobDependency.job_id,
+        viewonly=True,
+        order_by=JobDependency.waited_for_job_id,
+    )
+    dependencies_ids: Mapped[list[int]] = association_proxy(
+        "dependencies_jobdependency", "waited_for_job_id"
+    )
     dependents: Mapped[list["Job"]] = relationship(
         "Job",
         secondary=job_dependencies,
         primaryjoin=id == job_dependencies.c.waited_for_job_id,
         secondaryjoin=id == job_dependencies.c.job_id,
-        # back_populates="dependencies",
         viewonly=True,
-    )
-    # dependencies: Mapped[list["Job"]] = relationship(
-    #     "Job",
-    #     secondary=job_dependencies,
-    #     primaryjoin=id == job_dependencies.c.job_id,
-    #     secondaryjoin=id == job_dependencies.c.waited_for_job_id,
-    #     back_populates="dependents",
-    # )
-    dep_objects: Mapped[list[JobDependency]] = relationship(
-        JobDependency,
-        primaryjoin=id == JobDependency.job_id,
-        viewonly=True,
-    )
-    dep_types: AssociationProxy[list[str]] = association_proxy(
-        "dep_objects", "dep_type"
-    )
-    dependencies: Mapped[list[int]] = association_proxy(
-        "dep_objects", "waited_for_job_id"
     )
 
     def __repr__(self) -> str:
@@ -270,8 +228,7 @@ class Job(Base):
             f"nodes={self.nodes}, "
             f"is_array_job={self.is_array_job}, "
             f"array_task_ids={self.array_task_ids}, "
-            # f"dependents={self.dependents}, "
-            # f"dependencies={self.dependencies}, "
+            f"dependencies={self.dependencies_str}, "
             f")"
         )
 
@@ -293,17 +250,22 @@ class Job(Base):
         content += shlex.join(self.command[split_idx + 1 :]) + "\n"
         return content
 
-    def submitted_command(self, fh, dependencies):
+    def get_dependencies_jobs(self, session):
+        return (
+            session.query(Job)
+            .filter(Job.id.in_(job_ids_from_dep_str(self.dependencies_str)))
+            .all()
+        )
+
+    def submitted_command(self, fh, session):
         command = list(self.command)
-        if dependencies:
-            dep_options = []
-            # add dependency jobs with their grid id to command
-            for dep_type, dep_job_list in dependencies.items():
-                dep_option = ",".join(
-                    f"{dep_type}{dep_job.grid_id}" for dep_job in dep_job_list
-                )
-                dep_options.append(dep_option)
-            command.insert(0, "--dependency=" + ",".join(dep_options))
+        if self.dependencies_str:
+            dep_jobs = self.get_dependencies_jobs(session)
+            dep_option = replace_job_ids_in_dep_str(
+                self.dependencies_str, [job.grid_id for job in dep_jobs]
+            )
+            command.insert(0, "--dependency")
+            command.insert(1, dep_option)
 
         if "---" in command:
             if any(arg.startswith("--wrap") for arg in command):
@@ -325,11 +287,11 @@ class Job(Base):
             str(error),
         ] + command
 
-    def submit(self, dependencies: dict[str, list["Job"]] = None):
+    def submit(self, session: Session = None):
         with tempfile.NamedTemporaryFile(
             mode="w+t", suffix=".sh", delete_on_close=False
         ) as fh:
-            command = self.submitted_command(fh=fh, dependencies=dependencies)
+            command = self.submitted_command(fh=fh, session=session)
             output = subprocess.check_output(
                 command,
                 text=True,
@@ -382,27 +344,65 @@ class Job(Base):
         return self.output_files
 
 
+def job_ids_from_dep_str(dependency_string: str | None) -> list[int]:
+    if not dependency_string:
+        return []
+    # Regular expression to match job IDs with optional +time
+    dep_job_id_pattern = re.compile(r"(\d+)(?:\+\d+)?")
+
+    # Find all matches in the dependency string
+    job_ids = dep_job_id_pattern.findall(dependency_string)
+
+    return list(map(int, job_ids))
+
+
+def replace_job_ids_in_dep_str(dependency_string, replacements):
+    if not dependency_string:
+        return dependency_string
+    # Regular expression to match job IDs with optional +time
+    job_id_pattern = re.compile(r"(\d+)(\+\d+)?")
+
+    # Function to replace matched job ID with corresponding replacement from the list
+    def replacement_func(match):
+        time_part = match.group(2) if match.group(2) else ""
+        if replacements:
+            new_job_id = replacements.pop(0)
+            return f"{new_job_id}{time_part}"
+        else:
+            raise ValueError("Not enough replacements")
+
+    # Substitute all job IDs in the dependency string
+    result_string = job_id_pattern.sub(replacement_func, dependency_string)
+
+    return result_string
+
+
 class JobManager:
     def __init__(self, database: Path, logs_dir: Path) -> None:
         self.database = Path(database)
         self.engine = create_engine(f"sqlite:///{self.database}", echo=False)
-        Base.metadata.create_all(self.engine)
         self.logs_dir = Path(logs_dir)
         self.logs_dir.mkdir(exist_ok=True)
+
+    def __enter__(self):
+        # opens a new session and returns it
+        Base.metadata.create_all(self.engine)
         self._session = Session(self.engine)
+        self._session.begin()
+        return self._session
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # closes the session and rollbacks in case of an exception
+        if exc_type is not None:
+            self._session.rollback()
+        self._session.close()
+        return False
 
     @property
     def session(self) -> Session:
-        if self._session is None:
-            self._session = Session(self.engine)
         return self._session
 
-    def submit_job(self, name, command, array, dependencies: dict[str, list[int]]):
-        # find dependencies
-        obj_dependencies = defaultdict(list)
-        for k, v in dependencies.items():
-            obj_dependencies[k].extend(self.session.query(Job).filter(Job.id.in_(v)))
-
+    def submit_job(self, name, command, array, dependencies):
         array_task_ids = None
         if array:
             command = ("--array", array) + tuple(command)
@@ -413,32 +413,33 @@ class JobManager:
             logs_dir=self.logs_dir,
             is_array_job=bool(array),
             array_task_ids=array_task_ids,
+            dependencies_str=dependencies,
         )
         try:
-            job.submit(dependencies=obj_dependencies)
+            job.submit(session=self.session)
             self.session.add(job)
             self.session.flush()
             self.session.refresh(job)
+
             if dependencies:
+                # add dependency relationships
+                dep_job_ids = job_ids_from_dep_str(dependencies)
                 self.session.add_all(
                     [
                         JobDependency(
                             job_id=job.id,
                             waited_for_job_id=dep_id,
-                            dep_type=dep_type,
                         )
-                        for dep_type, dep_ids in dependencies.items()
-                        for dep_id in dep_ids
+                        for dep_id in dep_job_ids
                     ]
                 )
         except sqlalchemy.exc.SQLAlchemyError as e:
             raise RuntimeError(
                 f"""Failed to submit job with
-name: {job.name}
-command: {job.command}
-output: {job.output}
-error: {job.error}
-dependencies: {dict(dependencies)}"""
+name: {name}
+command: {command}
+array: {array}
+dependencies: {dependencies}"""
             ) from e
         return job
 
@@ -455,8 +456,11 @@ dependencies: {dict(dependencies)}"""
             if grid_id in job_statuses:
                 job.update(job_statuses[grid_id])
 
-    def list_jobs(self, *, job_ids=None, states=None, names=None) -> list[Job]:
-        self.update_jobs()
+    def list_jobs(
+        self, *, job_ids=None, states=None, names=None, update_jobs=True
+    ) -> list[Job]:
+        if update_jobs:
+            self.update_jobs()
         jobs = []
         query = self.session.query(Job)
         if job_ids:
@@ -470,40 +474,57 @@ dependencies: {dict(dependencies)}"""
 
         return jobs
 
-    def delete_jobs(self, **kwargs):
+    def stop_jobs(self, delete=False, **kwargs):
+        """Stop all jobs that match the given criteria."""
         jobs = self.list_jobs(**kwargs)
+        all_jobs = []
         for job in jobs:
-            job.cancel(delete_logs=True)
-            self.session.delete(job)
-        # also delete job depencencies
-        ids = [job.id for job in jobs]
-        self.session.query(JobDependency).filter(
-            JobDependency.job_id.in_(ids) | JobDependency.waited_for_job_id.in_(ids)
-        ).delete()
-        return jobs
+            job.cancel(delete_logs=delete)
+            all_jobs.append(job)
+            # also stop dependent jobs
+            for dependent_job in job.dependents:
+                dependent_job.cancel(delete_logs=delete)
+                all_jobs.append(dependent_job)
+        if delete:
+            with self.session.no_autoflush:
+                for job in all_jobs:
+                    self.session.delete(job)
+                # also delete job dependencies
+                ids = [job.id for job in all_jobs]
+                self.session.query(JobDependency).filter(
+                    JobDependency.job_id.in_(ids)
+                    | JobDependency.waited_for_job_id.in_(ids)
+                ).delete()
+        return all_jobs
 
-    def __del__(self):
-        # if there are no jobs in the database, delete the database file and the logs directory (if empty)
-        if os.path.exists(self.database) and len(self.list_jobs()) == 0:
-            os.remove(self.database)
-        if self.logs_dir.exists() and len(os.listdir(self.logs_dir)) == 0:
-            shutil.rmtree(self.logs_dir)
+    def delete_jobs(self, **kwargs):
+        return self.stop_jobs(delete=True, **kwargs)
 
     def resubmit_jobs(self, **kwargs):
         jobs = self.list_jobs(**kwargs)
+        all_jobs = []
         for job in jobs:
-            dependencies = defaultdict(list)
-            if job.dependencies:
-                dep_jobs = self.list_jobs(job_ids=job.dependencies)
-                assert len(dep_jobs) == len(
-                    job.dependencies
-                ), f"{len(dep_jobs)}!= {len(job.dependencies)}"
-                for dep_type, dep_job in zip(job.dep_types, dep_jobs):
-                    dependencies[dep_type].append(dep_job)
             job.cancel(delete_logs=True)
-            job.submit(dependencies=dependencies)
+            job.submit(session=self.session)
             self.session.add(job)
-        return jobs
+            all_jobs.append(job)
+            for dependent_job in job.dependents:
+                dependent_job.cancel(delete_logs=True)
+                dependent_job.submit(session=self.session)
+                self.session.add(dependent_job)
+                all_jobs.append(dependent_job)
+        return all_jobs
+
+    def __del__(self):
+        # if there are no jobs in the database, delete the database file and the logs directory (if empty)
+        with self:
+            if (
+                os.path.exists(self.database)
+                and len(self.list_jobs(update_jobs=False)) == 0
+            ):
+                os.remove(self.database)
+            if self.logs_dir.exists() and len(os.listdir(self.logs_dir)) == 0:
+                shutil.rmtree(self.logs_dir)
 
 
 class CustomGroup(AliasedGroup):
@@ -551,23 +572,6 @@ def cli(ctx, database, logs_dir):
     ctx.meta["job_manager"] = JobManager(database=database, logs_dir=logs_dir)
 
 
-def dependency_callback(ctx, param, value) -> dict[str, list[int]]:
-    """Callback for the dependency option.
-
-    It replaces all the integer values with job ids from the local sql
-    database
-    """
-    dependency_ids = defaultdict(list)
-    if value is None:
-        return dependency_ids
-    pattern = r"([,?]?[a-z]*:?)(\d+:?\d*)"
-    for match in re.finditer(pattern, value):
-        job_prefix, job_ids = match.groups()
-        job_ids = parse_job_ids(job_ids)
-        dependency_ids[job_prefix or "afterany:"].extend(job_ids)
-    return dependency_ids
-
-
 @cli.command(
     epilog="""Example:
 gridtk submit my_script.sh
@@ -594,8 +598,7 @@ gridtk submit --- python my_code.py
     "-d",
     "--dependency",
     "dependencies",
-    help="Dependency of the job.",
-    callback=dependency_callback,
+    help="Depend on other jobs that are already in the list of gridtk.",
 )
 @click.option(
     "--repeat",
@@ -625,7 +628,6 @@ gridtk submit --- python my_code.py
 @click.option("-c", "--cpus-per-task", hidden=True)
 @click.option("--deadline", hidden=True)
 @click.option("--delay-boot", hidden=True)
-@click.option("-d", "--dependency", hidden=True)
 @click.option("-m", "--distribution", hidden=True)
 @click.option("-e", "--error", hidden=True)
 @click.option("-x", "--exclude", hidden=True)
@@ -731,7 +733,14 @@ def submit(ctx, job_name, array, dependencies, repeat, script, **kwargs):
 
     command.extend(script)
 
-    with job_manager.session as session:
+    with job_manager as session:
+        if repeat > 1:
+            if dependencies is not None and (
+                "," in dependencies or "?" in dependencies
+            ):
+                raise click.UsageError(
+                    f"Repeated jobs can only have one dependency type (no `,` or `?` in --dependency) but got {dependencies}"
+                )
         for _ in range(repeat):
             job = job_manager.submit_job(
                 name=job_name,
@@ -740,7 +749,9 @@ def submit(ctx, job_name, array, dependencies, repeat, script, **kwargs):
                 dependencies=dependencies,
             )
             click.echo(job.id)
-            dependencies["afterany:"].append(job.id)
+            deps = (dependencies or "").split(",")
+            deps[-1] = f"{deps[-1]}:{job.id}" if deps[-1] else str(job.id)
+            dependencies = ",".join(deps)
         session.commit()
 
 
@@ -833,10 +844,10 @@ def job_filters(f_py=None, default_states=None):
 def resubmit(ctx, job_ids, states, names):
     """Resubmit a job to the queue."""
     job_manager: JobManager = ctx.meta["job_manager"]
-    with job_manager.session as session:
+    with job_manager as session:
         jobs = job_manager.resubmit_jobs(job_ids=job_ids, states=states, names=names)
         for job in jobs:
-            click.echo(f"Resubmitted {job.id}")
+            click.echo(f"Resubmitted job {job.id}")
         session.commit()
 
 
@@ -846,10 +857,9 @@ def resubmit(ctx, job_ids, states, names):
 def stop(ctx, job_ids, states, names):
     """Stop a job from running."""
     job_manager: JobManager = ctx.meta["job_manager"]
-    with job_manager.session as session:
-        jobs = job_manager.list_jobs(job_ids=job_ids, states=states, names=names)
+    with job_manager as session:
+        jobs = job_manager.stop_jobs(job_ids=job_ids, states=states, names=names)
         for job in jobs:
-            job.cancel(delete_logs=False)
             click.echo(f"Stopped {job.id}")
         session.commit()
 
@@ -860,7 +870,7 @@ def stop(ctx, job_ids, states, names):
 def list_jobs(ctx: click.Context, job_ids, states, names):
     """List jobs in the queue, similar to sacct and squeue."""
     job_manager: JobManager = ctx.meta["job_manager"]
-    with job_manager.session as session:
+    with job_manager as session:
         jobs = job_manager.list_jobs(job_ids=job_ids, states=states, names=names)
         table = defaultdict(list)
         for job in jobs:
@@ -876,7 +886,7 @@ def list_jobs(ctx: click.Context, job_ids, states, names):
                 .relative_to(job_manager.logs_dir.resolve())
             )
             table["dependencies"].append(
-                ",".join([str(dep_job) for dep_job in job.dependencies])
+                ",".join([str(dep_job) for dep_job in job.dependencies_ids])
             )
             table["command"].append("gridtk submit " + " ".join(job.command))
         click.echo(tabulate(table, headers="keys"))
@@ -895,7 +905,7 @@ def list_jobs(ctx: click.Context, job_ids, states, names):
 def report(ctx, job_ids, states, names, array_idx):
     """Report on jobs in the queue."""
     job_manager: JobManager = ctx.meta["job_manager"]
-    with job_manager.session as session:
+    with job_manager as session:
         jobs = job_manager.list_jobs(job_ids=job_ids, states=states, names=names)
         for job in jobs:
             report_text = ""
@@ -904,7 +914,7 @@ def report(ctx, job_ids, states, names, array_idx):
             report_text += f"State: {job.state} ({job.exit_code})\n"
             report_text += f"Nodes: {job.nodes}\n"
             with tempfile.NamedTemporaryFile(mode="w+t", suffix=".sh") as tmpfile:
-                report_text += f"Submitted command: {job.submitted_command(tmpfile, dependencies=None)}\n"
+                report_text += f"Submitted command: {job.submitted_command(tmpfile, session=session)}\n"
                 if job.command_in_bash:
                     report_text += (
                         f"Content of the temporary script:\n{job.command_in_bash}\n"
@@ -932,7 +942,7 @@ def report(ctx, job_ids, states, names, array_idx):
 def delete(ctx, job_ids, states, names):
     """Delete a job from the queue."""
     job_manager: JobManager = ctx.meta["job_manager"]
-    with job_manager.session as session:
+    with job_manager as session:
         jobs = job_manager.delete_jobs(job_ids=job_ids, states=states, names=names)
         for job in jobs:
             click.echo(f"Deleted job {job.id} with grid ID {job.grid_id}")
