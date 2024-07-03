@@ -22,7 +22,6 @@ class CustomGroup(AliasedGroup):
     def get_command(self, ctx, cmd_name):
         cmd_name = {
             "sbatch": "submit",
-            "scancel": "stop",
             "ls": "list",
             "rm": "delete",
             "remove": "delete",
@@ -60,7 +59,8 @@ def cli(ctx, database, logs_dir):
 
 
 @cli.command(
-    epilog="""Example:
+    epilog="""\b
+Example:
 gridtk submit my_script.sh
 gridtk submit --- python my_code.py
 """,
@@ -366,7 +366,7 @@ def stop(ctx: click.Context, job_ids: list[int], states: list[str], names: list[
     with job_manager as session:
         jobs = job_manager.stop_jobs(job_ids=job_ids, states=states, names=names)
         for job in jobs:
-            click.echo(f"Stopped {job.id}")
+            click.echo(f"Stopped job {job.id} wiht slurm id {job.grid_id}")
         session.commit()
 
 
@@ -387,7 +387,7 @@ def list_jobs(
         table = defaultdict(list)
         for job in jobs:
             table["job-id"].append(job.id)
-            table["grid-id"].append(job.grid_id)
+            table["slurm-id"].append(job.grid_id)
             table["nodes"].append(job.nodes)
             table["state"].append(f"{job.state} ({job.exit_code})")
             table["job-name"].append(job.name)
@@ -467,7 +467,7 @@ def delete(ctx: click.Context, job_ids: list[int], states: list[str], names: lis
     with job_manager as session:
         jobs = job_manager.delete_jobs(job_ids=job_ids, states=states, names=names)
         for job in jobs:
-            click.echo(f"Deleted job {job.id} with grid ID {job.grid_id}")
+            click.echo(f"Deleted job {job.id} with slurm id {job.grid_id}")
         session.commit()
 
 

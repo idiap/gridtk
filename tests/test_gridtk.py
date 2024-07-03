@@ -282,7 +282,7 @@ def test_stop_jobs(mock_check_output, runner):
         mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
         result = runner.invoke(cli, ["stop", "--name", "gridtk"])
         assert_click_runner_result(result)
-        assert result.output == "Stopped 1\n"
+        assert result.output == f"Stopped job 1 wiht slurm id {submit_job_id}\n"
         mock_check_output.assert_called_with(["scancel", str(submit_job_id)])
 
 
@@ -297,7 +297,7 @@ def test_delete_jobs(mock_check_output, runner):
         mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
         result = runner.invoke(cli, ["delete"])
         assert_click_runner_result(result)
-        assert result.output == f"Deleted job 1 with grid ID {submit_job_id}\n"
+        assert result.output == f"Deleted job 1 with slurm id {submit_job_id}\n"
         mock_check_output.assert_called_with(["scancel", str(submit_job_id)])
 
 
@@ -401,7 +401,7 @@ def test_submit_with_dependencies(mock_check_output, runner):
         assert_click_runner_result(result)
         assert (
             result.output
-            == f"Deleted job 1 with grid ID {first_grid_id + 10}\nDeleted job 2 with grid ID {second_grid_id + 10}\n"
+            == f"Deleted job 1 with slurm id {first_grid_id + 10}\nDeleted job 2 with slurm id {second_grid_id + 10}\n"
         )
         mock_check_output.assert_called_with(["scancel", str(second_grid_id + 10)])
 
