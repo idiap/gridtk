@@ -35,14 +35,14 @@ repository = "https://gitlab.idiap.ch/software/gridtk"
 changelog = "https://gitlab.idiap.ch/software/gridtk/-/releases"
 
 [project.optional-dependencies]
-qa = ["pre-commit"]
+qa = ["pre-commit", "ruff", "reuse"]
 doc = [
   "sphinx",
   "furo",
   "sphinx-autodoc-typehints",
   "sphinx-copybutton",
   "sphinx-inline-tabs",
-  "auto-intersphinx",
+  "myst-parser",
 ]
 test = ["pytest", "pytest-cov", "coverage"]
 
