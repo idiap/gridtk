@@ -6,3 +6,11 @@
 include:
   - project: software/dev-profile
     file: /gitlab/pixi.yml
+
+.tests:
+  parallel:
+    matrix:
+      - PYTHON:
+          - default
+        TAG:
+          - docker
