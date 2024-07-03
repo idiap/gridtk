@@ -10,10 +10,11 @@ build-backend = "hatchling.build"
 name = "gridtk"
 dynamic = ["version"]
 requires-python = ">=3.10"
-description = "Grid-enabled job submitter and execution monitor for Idiap"
+description = "GridTK: SLURM Job Managetment for Humans"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 authors = [
+  { name = "Amir Mohamamdi", email = "amir.mohammadi@idiap.ch" },
   { name = "Andre Anjos", email = "andre.anjos@idiap.ch" },
   { name = "Manuel Guenther", email = "manuel.guenther@idiap.ch" },
 ]
@@ -25,7 +26,7 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dependencies = ["clapper", "sqlalchemy>=2"]
+dependencies = ["clapper", "sqlalchemy>=2", "tabulate", "click"]
 
 [project.urls]
 documentation = "https://gridtk.readthedocs.io/en/latest/"
@@ -48,10 +49,12 @@ test = ["pytest", "pytest-cov", "coverage"]
 [project.scripts]
 gridtk = "gridtk.cli:cli"
 
-
 [tool.pixi.project]
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-arm64"]
+
+[tool.pixi.system-requirements]
+linux = "4.19.0"
 
 [tool.pixi.dependencies]
 clapper = "*"
@@ -61,8 +64,14 @@ pytest = ">=8.2.0,<8.3"
 pytest-mock = ">=3.14.0,<3.15"
 click = ">=8.1.7,<8.2"
 
-[tool.pixi.pypi-dependencies]
-gridtk = { path = ".", editable = true, extras = ["qa", "doc", "test"] }
+[tool.pixi.feature.self.pypi-dependencies]
+gridtk = { path = ".", editable = true }
+
+[tool.pixi.feature.py311.dependencies]
+python = "~=3.11.0"
+
+[tool.pixi.feature.py312.dependencies]
+python = "~=3.12.0"
 
 [tool.pixi.feature.qa.dependencies]
 pre-commit = "*"
@@ -72,6 +81,7 @@ reuse = "*"
 [tool.pixi.feature.qa.tasks]
 qa-install = "pre-commit install"
 qa = "pre-commit run --all-files"
+qa-ci = "pre-commit run --all-files --show-diff-on-failure --verbose"
 
 [tool.pixi.feature.doc.dependencies]
 sphinx = "*"
@@ -80,24 +90,39 @@ sphinx-autodoc-typehints = "*"
 auto-intersphinx = "*"
 sphinx-copybutton = "*"
 sphinx-inline-tabs = "*"
-myst-parser = "*"
 
 [tool.pixi.feature.doc.tasks]
-doc = "rm -rf doc/api && rm -rf html && sphinx-build -aEW doc html"
+doc-clean = "rm -rf doc/api && rm -rf html"
+doc = "sphinx-build -aEW doc html"
+doctest = "sphinx-build -aEb doctest doc html/doctest"
 
 [tool.pixi.feature.test.dependencies]
 pytest = "*"
 pytest-cov = "*"
 
-[tool.pixi.feature.debug.dependencies]
-pdbpp = "*"
-
 [tool.pixi.feature.test.tasks]
 test = "pytest -sv tests/"
 test-ci = "pytest -sv --cov-report 'html:html/coverage' --cov-report 'xml:coverage.xml' --junitxml 'junit-coverage.xml' --ignore '.profile' tests/"
 
+[tool.pixi.feature.build.dependencies]
+hatch = "*"
+versioningit = "*"
+twine = "*"
+
+[tool.pixi.feature.build.tasks]
+build = "hatch build"
+check = "twine check dist/*"
+upload = "twine upload dist/*"
+
+[tool.pixi.feature.dev.dependencies]
+pdbpp = "*"
+uv = "*"
+
 [tool.pixi.environments]
-default = { features = ["qa", "doc", "test", "debug"] }
+default = { features = ["qa", "build", "doc", "test", "dev", "py312", "self"] }
+qa-ci = { features = ["qa", "py312"] }
+build-ci = { features = ["build", "py312"] }
+test-ci-alternative = { features = ["test", "py311", "self"] }
 
 [tool.hatch.version]
 source = "versioningit"
@@ -115,25 +140,74 @@ distance-dirty = "{next_version}.dev{distance}+{vcs}{rev}.d{build_date:%Y%m%d}"
 include = [
   "src/**/*.py",
   "tests/**/*.py",
-  "tests/**/*.sh",
   "doc/**/*.rst",
-  "doc/**/*.json",
-  "doc/**/*.txt",
   "doc/**/*.py",
   "LICENSES/*.txt",
+  "LICENSE",
+  "READNE.md",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/gridtk"]
 
-[tool.isort]
-profile = "black"
-line_length = 88
-order_by_type = true
-lines_between_types = 1
-
-[tool.black]
+[tool.ruff]
 line-length = 88
+target-version = "py310"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+  "A",   # https://docs.astral.sh/ruff/rules/#flake8-builtins-a
+  "COM", # https://docs.astral.sh/ruff/rules/#flake8-commas-com
+  "D",   # https://docs.astral.sh/ruff/rules/#pydocstyle-d
+  "E",   # https://docs.astral.sh/ruff/rules/#error-e
+  "F",   # https://docs.astral.sh/ruff/rules/#pyflakes-f
+  "I",   # https://docs.astral.sh/ruff/rules/#isort-i
+  "ISC", # https://docs.astral.sh/ruff/rules/#flake8-implicit-str-concat-isc
+  "LOG", # https://docs.astral.sh/ruff/rules/#flake8-logging-log
+  "N",   # https://docs.astral.sh/ruff/rules/#pep8-naming-n
+  "PTH", # https://docs.astral.sh/ruff/rules/#flake8-use-pathlib-pth
+  "Q",   # https://docs.astral.sh/ruff/rules/#flake8-quotes-q
+  "RET", # https://docs.astral.sh/ruff/rules/#flake8-return-ret
+  "SLF", # https://docs.astral.sh/ruff/rules/#flake8-self-slf
+  "T10", # https://docs.astral.sh/ruff/rules/#flake8-debugger-t10
+  "T20", # https://docs.astral.sh/ruff/rules/#flake8-print-t20
+  "UP",  # https://docs.astral.sh/ruff/rules/#pyupgrade-up
+  "W",   # https://docs.astral.sh/ruff/rules/#warning-w
+  #"G",   # https://docs.astral.sh/ruff/rules/#flake8-logging-format-g
+  #"ICN", # https://docs.astral.sh/ruff/rules/#flake8-import-conventions-icn
+]
+ignore = [
+  "COM812", # https://docs.astral.sh/ruff/rules/missing-trailing-comma/
+  "D100",   # https://docs.astral.sh/ruff/rules/undocumented-public-module/
+  "D102",   # https://docs.astral.sh/ruff/rules/undocumented-public-method/
+  "D104",   # https://docs.astral.sh/ruff/rules/undocumented-public-package/
+  "D105",   # https://docs.astral.sh/ruff/rules/undocumented-magic-method/
+  "D107",   # https://docs.astral.sh/ruff/rules/undocumented-public-init/
+  "D203",   # https://docs.astral.sh/ruff/rules/one-blank-line-before-class/
+  "D202",   # https://docs.astral.sh/ruff/rules/no-blank-line-after-function/
+  "D205",   # https://docs.astral.sh/ruff/rules/blank-line-after-summary/
+  "D212",   # https://docs.astral.sh/ruff/rules/multi-line-summary-first-line/
+  "D213",   # https://docs.astral.sh/ruff/rules/multi-line-summary-second-line/
+  "E302",   # https://docs.astral.sh/ruff/rules/blank-lines-top-level/
+  "E402",   # https://docs.astral.sh/ruff/rules/module-import-not-at-top-of-file/
+  "E501",   # https://docs.astral.sh/ruff/rules/line-too-long/
+  "ISC001", # https://docs.astral.sh/ruff/rules/single-line-implicit-string-concatenation/
+]
+
+[tool.ruff.lint.isort]
+# Use a single line between direct and from import.
+lines-between-types = 1
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["D", "E501"]
+"doc/conf.py" = ["D"]
+
 
 [tool.pytest.ini_options]
 addopts = ["--cov=gridtk", "--cov-report=term-missing", "--import-mode=append"]

@@ -11,7 +11,6 @@ import warnings
 
 from pathlib import Path
 from sqlite3 import Connection as SQLite3Connection
-from typing import Optional
 
 from sqlalchemy import Column, ForeignKey, Integer, String, Table, event
 from sqlalchemy.engine import Engine
@@ -33,6 +32,7 @@ from .tools import job_ids_from_dep_str, replace_job_ids_in_dep_str
 # https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#foreign-key-support
 @event.listens_for(Engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):
+    """Enable foreign key support in sqlite3."""
     if isinstance(dbapi_connection, SQLite3Connection):
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
@@ -74,18 +74,19 @@ sacct only retuns these states https://slurm.schedmd.com/sacct.html#lbAG
 
 
 class ObjectValue(TypeDecorator):
+    """Store JSON-serializable objects in a SQLite3 database."""
+
     impl = String
 
     def process_bind_param(self, value, dialect):
         if value is not None:
-            if isinstance(value, (dict, list, tuple)):
+            if isinstance(value, dict | list | tuple):
                 value = json.dumps(value)
             elif isinstance(value, Path):
                 value = str(value.absolute())
             else:
                 raise TypeError(
-                    "ObjectValue must be a dict, list, tuple or Path but got %r"
-                    % type(value)
+                    f"ObjectValue must be a dict, list, tuple or Path but got {type(value)}"
                 )
         return value
 
@@ -102,6 +103,8 @@ mapper_registry = registry()
 
 
 class Base(DeclarativeBase):
+    """Base class for declarative models."""
+
     pass
 
 
@@ -130,18 +133,20 @@ mapper_registry.map_imperatively(JobDependency, job_dependencies)
 
 
 class Job(Base):
+    """Represents a job in the database."""
+
     __tablename__ = "jobs"
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(30))
     command: Mapped[list] = mapped_column(ObjectValue)
     logs_dir: Mapped[Path] = mapped_column(ObjectValue)
     is_array_job: Mapped[bool]
-    dependencies_str: Mapped[Optional[str]] = mapped_column(String(2048))
-    grid_id: Mapped[Optional[int]]
-    state: Mapped[Optional[str]] = mapped_column(String(30), default="UNKNOWN")
-    exit_code: Mapped[Optional[str]]
-    nodes: Mapped[Optional[str]]  # list of node names
-    array_task_ids: Mapped[Optional[list[int]]] = mapped_column(ObjectValue)
+    dependencies_str: Mapped[str | None] = mapped_column(String(2048))
+    grid_id: Mapped[int | None]
+    state: Mapped[str | None] = mapped_column(String(30), default="UNKNOWN")
+    exit_code: Mapped[str | None]
+    nodes: Mapped[str | None]  # list of node names
+    array_task_ids: Mapped[list[int] | None] = mapped_column(ObjectValue)
     dependencies_jobdependency: Mapped[list[JobDependency]] = relationship(
         JobDependency,
         primaryjoin=id == JobDependency.job_id,  # type: ignore[attr-defined]
@@ -272,15 +277,14 @@ class Job(Base):
         output, _ = map(str, self.output_options)
         if not self.is_array_job:
             return [Path(output.replace("%j", str(self.grid_id)))]
-        else:
-            files = []
-            for array_task_id in self.array_task_ids:
-                files.append(
-                    output.replace("%A", str(self.grid_id)).replace(
-                        "%a", str(array_task_id)
-                    )
+        files = []
+        for array_task_id in self.array_task_ids:
+            files.append(
+                output.replace("%A", str(self.grid_id)).replace(
+                    "%a", str(array_task_id)
                 )
-            return list(map(Path, files))
+            )
+        return list(map(Path, files))
 
     @property
     def error_files(self):

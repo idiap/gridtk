@@ -14,6 +14,7 @@ needs_sphinx = "1.3"
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
+    "sphinx.ext.doctest",
     "myst_parser",
 ]
 
@@ -21,7 +22,7 @@ extensions = [
 project = "gridtk"
 package = distribution(project)
 
-copyright = "%s, Idiap Research Institute" % time.strftime("%Y")
+copyright = f"{time.strftime('%Y')}, Idiap Research Institute"  # noqa: A001
 
 # The short X.Y version.
 version = package.version

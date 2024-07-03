@@ -11,7 +11,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from click.testing import CliRunner
-
 from gridtk.__main__ import cli
 from gridtk.tools import (
     job_ids_from_dep_str,

@@ -22,8 +22,8 @@ import os
 import shutil
 import subprocess
 
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import sqlalchemy
 
@@ -35,6 +35,7 @@ from .tools import job_ids_from_dep_str, parse_array_indexes
 
 
 def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
+    """Retrieve the status of the jobs in the database."""
     status = dict()
     output = subprocess.check_output(
         ["sacct", "-j", ",".join([str(x) for x in grid_ids]), "--json"],
@@ -46,6 +47,8 @@ def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
 
 
 class JobManager:
+    """Implements a job manager for Slurm."""
+
     def __init__(self, database: Path, logs_dir: Path) -> None:
         self.database = Path(database)
         self.engine = create_engine(f"sqlite:///{self.database}", echo=False)
@@ -187,9 +190,9 @@ dependencies: {dependencies}"""
         # if there are no jobs in the database, delete the database file and the logs directory (if empty)
         with self:
             if (
-                os.path.exists(self.database)
+                Path(self.database).exists()
                 and len(self.list_jobs(update_jobs=False)) == 0
             ):
-                os.remove(self.database)
+                Path(self.database).unlink()
             if self.logs_dir.exists() and len(os.listdir(self.logs_dir)) == 0:
                 shutil.rmtree(self.logs_dir)

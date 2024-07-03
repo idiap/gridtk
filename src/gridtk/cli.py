@@ -15,6 +15,8 @@ from clapper.click import AliasedGroup
 
 
 class CustomGroup(AliasedGroup):
+    """Custom command group that does not sort commands."""
+
     def list_commands(self, ctx: click.Context) -> list[str]:
         # do not sort the commands
         return self.commands
@@ -262,22 +264,20 @@ def parse_job_ids(job_ids: str) -> list[int]:
             for job_id in job_ids.split(","):
                 final_job_ids.extend(parse_job_ids(job_id))
             return final_job_ids
-        elif "-" in job_ids:
+        if "-" in job_ids:
             start, end_str = job_ids.split("-")
             return list(range(int(start), int(end_str) + 1))
-        elif "+" in job_ids:
+        if "+" in job_ids:
             start, length = job_ids.split("+")
             end = int(start) + int(length)
             return list(range(int(start), end + 1))
-        else:
-            return [int(job_ids)]
+        return [int(job_ids)]
     except ValueError as e:
         raise click.BadParameter(f"Invalid job id {job_ids}") from e
 
 
 def parse_states(states: str) -> list[str]:
-    """Normalizes a list of comma separated states to their long name
-    format."""
+    """Normalize a list of comma-separated states to their long name format."""
     from .models import JOB_STATES_MAPPING
 
     if not states:
@@ -296,16 +296,17 @@ def parse_states(states: str) -> list[str]:
 
 
 def job_ids_callback(ctx, param, value):
-    """Callback for the job ids option."""
+    """Implement a callback for the job ids option."""
     return parse_job_ids(value)
 
 
 def states_callback(ctx, param, value):
-    """Callback for the states option."""
+    """Implement a callback for the states option."""
     return parse_states(value)
 
 
 def job_filters(f_py=None, default_states=None):
+    """Filter jobs based on the provided function and default states."""
     assert callable(f_py) or f_py is None
     from .models import JOB_STATES_MAPPING
 
@@ -333,7 +334,7 @@ def job_filters(f_py=None, default_states=None):
             help="Selects only these job ids, separated by comma.",  # TODO: explain range notation
             callback=job_ids_callback,
         )(function)
-        return function
+        return function  # noqa: RET504
 
     return _job_filters_decorator(f_py) if callable(f_py) else _job_filters_decorator
 
