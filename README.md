@@ -25,7 +25,7 @@ installation, submission, monitoring, and various commands provided by GridTK.
 Before diving into GridTK, ensure you have the following prerequisites:
 
 1. A working SLURM setup.
-2. [Pixi](https://pixi.sh) or [pipx](https://pipx.pypa.io) to install GridTK.
+2. [Pixi](https://pixi.sh) installed.
 3. GridTK installed (instructions provided below).
 
 ## Installation
@@ -33,9 +33,9 @@ Before diving into GridTK, ensure you have the following prerequisites:
 To install GridTK, open your terminal and run the following command:
 
 ```bash
-$ pixi global install gridtk
-# or
-$ pipx install gridtk
+$ pixi global install pipx
+$ pixi global install python=3.12
+$ pipx install --force --python python3.12 'git+https://gitlab.idiap.ch/software/gridtk.git'
 ```
 It is **not recommennded** to install GridTK using `pip install gridtk` in the
 same environment as your expeirments. GirdTK does not need to be installed in
@@ -239,3 +239,15 @@ Here are some usefull commands:
   # or
   sacctmgr -n -p list assoc where user=$USER | awk '-F|' '{print "   "$2}'
   ```
+
+### Tab Completion
+
+GridTK supports tab completion for the `gridtk` command. To enable it, add the following
+line to your `~/.bashrc` file:
+```bash
+eval "$(_GRIDTK_COMPLETE=bash_source gridtk)"
+```
+or for `zsh` add the following line to your `~/.zshrc` file:
+```bash
+eval "$(_GRIDTK_COMPLETE=zsh_source gridtk)"
+```
