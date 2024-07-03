@@ -6,21 +6,23 @@ import re
 
 
 def parse_array_indexes(indexes_str: str) -> list[int]:
+    """Pares a string of array indexes to a list of integers."""
+
     def parse_range(range_str):
         if ":" in range_str:
             range_part, step = range_str.split(":")
             start, end = map(int, range_part.split("-"))
             step = int(step)
             return list(range(start, end + 1, step))
-        else:
-            start, end = map(int, range_str.split("-"))
-            return list(range(start, end + 1))
+
+        start, end = map(int, range_str.split("-"))
+        return list(range(start, end + 1))
 
     def parse_segment(segment):
         if "-" in segment:
             return parse_range(segment)
-        else:
-            return [int(segment)]
+
+        return [int(segment)]
 
     # Remove any limit on simultaneous running tasks
     if "%" in indexes_str:
@@ -35,6 +37,7 @@ def parse_array_indexes(indexes_str: str) -> list[int]:
 
 
 def job_ids_from_dep_str(dependency_string: str | None) -> list[int]:
+    """Extract job IDs from a dependency string."""
     if not dependency_string:
         return []
     # Regular expression to match job IDs with optional +time
@@ -47,6 +50,7 @@ def job_ids_from_dep_str(dependency_string: str | None) -> list[int]:
 
 
 def replace_job_ids_in_dep_str(dependency_string, replacements):
+    """Replace job IDs in a dependency string with new IDs from a list."""
     if not dependency_string:
         return dependency_string
     # Regular expression to match job IDs with optional +time
@@ -58,10 +62,7 @@ def replace_job_ids_in_dep_str(dependency_string, replacements):
         if replacements:
             new_job_id = replacements.pop(0)
             return f"{new_job_id}{time_part}"
-        else:
-            raise ValueError("Not enough replacements")
+        raise ValueError("Not enough replacements")
 
     # Substitute all job IDs in the dependency string
-    result_string = job_id_pattern.sub(replacement_func, dependency_string)
-
-    return result_string
+    return job_id_pattern.sub(replacement_func, dependency_string)
