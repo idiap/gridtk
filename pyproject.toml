@@ -84,9 +84,9 @@ qa-ci = "pre-commit run --all-files --show-diff-on-failure --verbose"
 sphinx = "*"
 furo = "*"
 sphinx-autodoc-typehints = "*"
-auto-intersphinx = "*"
 sphinx-copybutton = "*"
 sphinx-inline-tabs = "*"
+myst-parser = "*"
 
 [tool.pixi.feature.doc.tasks]
 doc-clean = "rm -rf doc/api && rm -rf html"
