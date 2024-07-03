@@ -233,4 +233,9 @@ Here are some usefull commands:
   ```bash
   sacctmgr show qos format=Name%20,Priority,Flags%30,MaxWall,MaxTRESPU%20,MaxJobsPU,MaxSubmitPU,MaxTRESPA%25
   ```
-* Find out which accounts your username has access to: `sacctmgr list associations`
+* Find out which accounts your username has access to:
+  ```bash
+  sacctmgr list associations
+  # or
+  sacctmgr -n -p list assoc where user=$USER | awk '-F|' '{print "   "$2}'
+  ```
