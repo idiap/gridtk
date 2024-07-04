@@ -215,7 +215,7 @@ def submit(
     from .manager import JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
-    # reconstruct the command with kwargs, script, and args
+    # reconstruct the command with kwargs and script
     command = []
     for k, v in kwargs.items():
         if v in (None, False):

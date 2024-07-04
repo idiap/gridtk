@@ -46,6 +46,15 @@ def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
     return status
 
 
+def get_dependent_jobs_recursive(jobs: Iterable[Job]) -> list[Job]:
+    """Get all the dependent jobs of a job recursively."""
+    dependent_jobs = set()
+    for job in jobs:
+        dependent_jobs.add(job)
+        dependent_jobs.update(get_dependent_jobs_recursive(job.dependents))
+    return list(sorted(dependent_jobs, key=lambda x: x.id))
+
+
 class JobManager:
     """Implements a job manager for Slurm."""
 
@@ -128,7 +137,13 @@ dependencies: {dependencies}"""
                 job.update(job_statuses[grid_id])
 
     def list_jobs(
-        self, *, job_ids=None, states=None, names=None, update_jobs=True
+        self,
+        *,
+        job_ids=None,
+        states=None,
+        names=None,
+        update_jobs=True,
+        get_dependents=False,
     ) -> list[Job]:
         if update_jobs:
             self.update_jobs()
@@ -142,49 +157,38 @@ dependencies: {dependencies}"""
             query = query.filter(Job.state.in_(states))
         for job in query.all():
             jobs.append(job)
+        if get_dependents:
+            jobs = get_dependent_jobs_recursive(jobs)
 
         return jobs
 
     def stop_jobs(self, delete=False, **kwargs):
         """Stop all jobs that match the given criteria."""
-        jobs = self.list_jobs(**kwargs)
-        all_jobs = []
+        jobs = self.list_jobs(**kwargs, get_dependents=True)
         for job in jobs:
             job.cancel(delete_logs=delete)
-            all_jobs.append(job)
-            # also stop dependent jobs
-            for dependent_job in job.dependents:
-                dependent_job.cancel(delete_logs=delete)
-                all_jobs.append(dependent_job)
         if delete:
             with self.session.no_autoflush:
-                for job in all_jobs:
+                for job in jobs:
                     self.session.delete(job)
                 # also delete job dependencies
-                ids = [job.id for job in all_jobs]
+                ids = [job.id for job in jobs]
                 self.session.query(JobDependency).filter(
                     JobDependency.job_id.in_(ids)
                     | JobDependency.waited_for_job_id.in_(ids)
                 ).delete()
-        return all_jobs
+        return jobs
 
     def delete_jobs(self, **kwargs):
         return self.stop_jobs(delete=True, **kwargs)
 
     def resubmit_jobs(self, **kwargs):
-        jobs = self.list_jobs(**kwargs)
-        all_jobs = []
+        jobs = self.list_jobs(**kwargs, get_dependents=True)
         for job in jobs:
             job.cancel(delete_logs=True)
             job.submit(session=self.session)
             self.session.add(job)
-            all_jobs.append(job)
-            for dependent_job in job.dependents:
-                dependent_job.cancel(delete_logs=True)
-                dependent_job.submit(session=self.session)
-                self.session.add(dependent_job)
-                all_jobs.append(dependent_job)
-        return all_jobs
+        return jobs
 
     def __del__(self):
         # if there are no jobs in the database, delete the database file and the logs directory (if empty)

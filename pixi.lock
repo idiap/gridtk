@@ -273,8 +273,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/zipp-3.17.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstandard-0.22.0-py312h5b18bf6_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/zstd-1.5.6-ha6fb4c9_0.conda
-      - pypi: https://files.pythonhosted.org/packages/47/a6/8e1bae714c36a6c94e732a771f397f48222c02f2387799dafdd6b4bcb0f0/auto_intersphinx-1.1.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/de/12/0253de661bb9f8c26b47059be4ed2ec5b9e4411fd2b1d45a2f4b399a7616/lxml-5.2.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: .
   qa-ci:
     channels:
@@ -447,25 +445,6 @@ packages:
   - pkg:pypi/attrs
   size: 54582
   timestamp: 1704011393776
-- kind: pypi
-  name: auto-intersphinx
-  version: 1.1.0
-  url: https://files.pythonhosted.org/packages/47/a6/8e1bae714c36a6c94e732a771f397f48222c02f2387799dafdd6b4bcb0f0/auto_intersphinx-1.1.0-py3-none-any.whl
-  sha256: 8c0c5e90ec46c5cf588e863f8fa5022a78b467007b64e3b13e03ae70d5e2db30
-  requires_dist:
-  - lxml
-  - packaging
-  - requests
-  - sphinx
-  - furo ; extra == 'doc'
-  - sphinx-argparse ; extra == 'doc'
-  - sphinx-autodoc-typehints ; extra == 'doc'
-  - sphinx-copybutton ; extra == 'doc'
-  - sphinx-inline-tabs ; extra == 'doc'
-  - pre-commit ; extra == 'qa'
-  - pytest ; extra == 'test'
-  - pytest-cov ; extra == 'test'
-  requires_python: '>=3.10'
 - kind: conda
   name: babel
   version: 2.14.0
@@ -1110,21 +1089,23 @@ packages:
   timestamp: 1703201779255
 - kind: pypi
   name: gridtk
-  version: 2.1.1.dev24+gccfc4c1.d20240703
+  version: 2.1.1.dev29+g45c9409
   path: .
-  sha256: 4ed27037440fcf51408b881693a945d897b4f2558e50d9eda32b59fc885c6cda
+  sha256: 671d78a4d4b2c6fc593cf283e164ed4e2d4290c7fbd99c29207c51539d1d366d
   requires_dist:
   - clapper
   - click
   - sqlalchemy>=2
   - tabulate
-  - auto-intersphinx ; extra == 'doc'
   - furo ; extra == 'doc'
+  - myst-parser ; extra == 'doc'
   - sphinx ; extra == 'doc'
   - sphinx-autodoc-typehints ; extra == 'doc'
   - sphinx-copybutton ; extra == 'doc'
   - sphinx-inline-tabs ; extra == 'doc'
   - pre-commit ; extra == 'qa'
+  - reuse ; extra == 'qa'
+  - ruff ; extra == 'qa'
   - coverage ; extra == 'test'
   - pytest ; extra == 'test'
   - pytest-cov ; extra == 'test'
@@ -1959,18 +1940,6 @@ packages:
   - pkg:pypi/license-expression?source=conda-forge-mapping
   size: 93614
   timestamp: 1690394219675
-- kind: pypi
-  name: lxml
-  version: 5.2.2
-  url: https://files.pythonhosted.org/packages/de/12/0253de661bb9f8c26b47059be4ed2ec5b9e4411fd2b1d45a2f4b399a7616/lxml-5.2.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-  sha256: 75a9632f1d4f698b2e6e2e1ada40e71f369b15d69baddb8968dcc8e683839b18
-  requires_dist:
-  - cssselect>=0.7 ; extra == 'cssselect'
-  - html5lib ; extra == 'html5'
-  - lxml-html-clean ; extra == 'html-clean'
-  - beautifulsoup4 ; extra == 'htmlsoup'
-  - cython>=3.0.10 ; extra == 'source'
-  requires_python: '>=3.6'
 - kind: conda
   name: markdown-it-py
   version: 3.0.0

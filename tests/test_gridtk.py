@@ -458,6 +458,27 @@ def test_submit_with_dependencies(mock_check_output, runner):
             text=True,
         )
 
+        # now delete all the jobs
+        mock_check_output.side_effect = [
+            _failed_job_sacct_json(first_grid_id),  # sacct
+            "",  # scancel 1
+            "",  # scancel 2
+            "",  # scancel 3
+            "",  # scancel 4
+            "",  # scancel 5
+        ]
+        result = runner.invoke(cli, ["delete"])
+        assert_click_runner_result(result)
+        assert (
+            result.output
+            == f"""Deleted job 1 with slurm id {first_grid_id}
+Deleted job 2 with slurm id {second_grid_id}
+Deleted job 3 with slurm id {first_grid_id + 10}
+Deleted job 4 with slurm id {second_grid_id + 10}
+Deleted job 5 with slurm id {third_grid_id + 10}
+"""
+        )
+
 
 if __name__ == "__main__":
     import sys
