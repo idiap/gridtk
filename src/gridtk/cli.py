@@ -334,6 +334,11 @@ def job_filters(f_py=None, default_states=None):
             help="Selects only these job ids, separated by comma.",  # TODO: explain range notation
             callback=job_ids_callback,
         )(function)
+        function = click.option(
+            "--dependents/--no-dependents",
+            default=False,
+            help="Select dependents jobs (jobs that depend on seleted jobs) as well.",
+        )(function)
         return function  # noqa: RET504
 
     return _job_filters_decorator(f_py) if callable(f_py) else _job_filters_decorator
@@ -343,14 +348,20 @@ def job_filters(f_py=None, default_states=None):
 @job_filters(default_states="BF,CA,F,NF,OOM,TO")
 @click.pass_context
 def resubmit(
-    ctx: click.Context, job_ids: list[int], states: list[str], names: list[str]
+    ctx: click.Context,
+    job_ids: list[int],
+    states: list[str],
+    names: list[str],
+    dependents: bool,
 ):
     """Resubmit a job to the queue."""
     from .manager import JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
-        jobs = job_manager.resubmit_jobs(job_ids=job_ids, states=states, names=names)
+        jobs = job_manager.resubmit_jobs(
+            job_ids=job_ids, states=states, names=names, dependents=dependents
+        )
         for job in jobs:
             click.echo(f"Resubmitted job {job.id}")
         session.commit()
@@ -359,13 +370,21 @@ def resubmit(
 @cli.command()
 @job_filters
 @click.pass_context
-def stop(ctx: click.Context, job_ids: list[int], states: list[str], names: list[str]):
+def stop(
+    ctx: click.Context,
+    job_ids: list[int],
+    states: list[str],
+    names: list[str],
+    dependents: bool,
+):
     """Stop a job from running."""
     from .manager import JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
-        jobs = job_manager.stop_jobs(job_ids=job_ids, states=states, names=names)
+        jobs = job_manager.stop_jobs(
+            job_ids=job_ids, states=states, names=names, dependents=dependents
+        )
         for job in jobs:
             click.echo(f"Stopped job {job.id} wiht slurm id {job.grid_id}")
         session.commit()
@@ -375,7 +394,11 @@ def stop(ctx: click.Context, job_ids: list[int], states: list[str], names: list[
 @job_filters
 @click.pass_context
 def list_jobs(
-    ctx: click.Context, job_ids: list[int], states: list[str], names: list[str]
+    ctx: click.Context,
+    job_ids: list[int],
+    states: list[str],
+    names: list[str],
+    dependents: bool,
 ):
     """List jobs in the queue, similar to sacct and squeue."""
     from tabulate import tabulate
@@ -384,7 +407,9 @@ def list_jobs(
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
-        jobs = job_manager.list_jobs(job_ids=job_ids, states=states, names=names)
+        jobs = job_manager.list_jobs(
+            job_ids=job_ids, states=states, names=names, dependents=dependents
+        )
         table = defaultdict(list)
         for job in jobs:
             table["job-id"].append(job.id)
@@ -420,6 +445,7 @@ def report(
     job_ids: list[int],
     states: list[str],
     names: list[str],
+    dependents: bool,
     array_idx: str | None,
 ):
     """Report on jobs in the queue."""
@@ -427,7 +453,9 @@ def report(
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
-        jobs = job_manager.list_jobs(job_ids=job_ids, states=states, names=names)
+        jobs = job_manager.list_jobs(
+            job_ids=job_ids, states=states, names=names, dependents=dependents
+        )
         for job in jobs:
             report_text = ""
             report_text += f"Job ID: {job.id}\n"
@@ -460,13 +488,21 @@ def report(
 @cli.command()
 @job_filters
 @click.pass_context
-def delete(ctx: click.Context, job_ids: list[int], states: list[str], names: list[str]):
+def delete(
+    ctx: click.Context,
+    job_ids: list[int],
+    states: list[str],
+    names: list[str],
+    dependents: bool,
+):
     """Delete a job from the queue."""
     from .manager import JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
-        jobs = job_manager.delete_jobs(job_ids=job_ids, states=states, names=names)
+        jobs = job_manager.delete_jobs(
+            job_ids=job_ids, states=states, names=names, dependents=dependents
+        )
         for job in jobs:
             click.echo(f"Deleted job {job.id} with slurm id {job.grid_id}")
         session.commit()

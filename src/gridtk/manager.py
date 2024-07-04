@@ -143,7 +143,7 @@ dependencies: {dependencies}"""
         states=None,
         names=None,
         update_jobs=True,
-        get_dependents=False,
+        dependents=False,
     ) -> list[Job]:
         if update_jobs:
             self.update_jobs()
@@ -157,14 +157,14 @@ dependencies: {dependencies}"""
             query = query.filter(Job.state.in_(states))
         for job in query.all():
             jobs.append(job)
-        if get_dependents:
+        if dependents:
             jobs = get_dependent_jobs_recursive(jobs)
 
         return jobs
 
     def stop_jobs(self, delete=False, **kwargs):
         """Stop all jobs that match the given criteria."""
-        jobs = self.list_jobs(**kwargs, get_dependents=True)
+        jobs = self.list_jobs(**kwargs)
         for job in jobs:
             job.cancel(delete_logs=delete)
         if delete:
@@ -183,7 +183,7 @@ dependencies: {dependencies}"""
         return self.stop_jobs(delete=True, **kwargs)
 
     def resubmit_jobs(self, **kwargs):
-        jobs = self.list_jobs(**kwargs, get_dependents=True)
+        jobs = self.list_jobs(**kwargs)
         for job in jobs:
             job.cancel(delete_logs=True)
             job.submit(session=self.session)

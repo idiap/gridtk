@@ -371,7 +371,7 @@ def test_submit_with_dependencies(mock_check_output, runner):
             "",  # scancel
             _sbatch_output(second_grid_id + 10),  # sbatch
         ]
-        result = runner.invoke(cli, ["resubmit", "--jobs", "1"])
+        result = runner.invoke(cli, ["resubmit", "--jobs", "1", "--dependents"])
         assert_click_runner_result(result)
         assert result.output == "Resubmitted job 1\nResubmitted job 2\n"
         mock_check_output.assert_called_with(
@@ -396,7 +396,7 @@ def test_submit_with_dependencies(mock_check_output, runner):
             "",  # scancel
             "",  # scancel
         ]
-        result = runner.invoke(cli, ["delete", "--jobs", "1"])
+        result = runner.invoke(cli, ["delete", "--jobs", "1", "--dependents"])
         assert_click_runner_result(result)
         assert (
             result.output
@@ -467,7 +467,7 @@ def test_submit_with_dependencies(mock_check_output, runner):
             "",  # scancel 4
             "",  # scancel 5
         ]
-        result = runner.invoke(cli, ["delete"])
+        result = runner.invoke(cli, ["delete", "--dependents"])
         assert_click_runner_result(result)
         assert (
             result.output
