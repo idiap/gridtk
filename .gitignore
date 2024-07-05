@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: Copyright © 2022 Idiap Research Institute <contact@idiap.ch>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+*~
+*.swp
+*.pyc
+*.egg-info
+.nfs*
+.coverage*
+*.DS_Store
+.envrc
+coverage.xml
+test_results.xml
+junit-coverage.xml
+html/
+build/
+doc/api/
+dist/
+cache/
+.venv/
+_citools/
+_work/
+.mypy_cache/
+.pytest_cache/
+changelog.md
+.pixi/
