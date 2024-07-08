@@ -24,7 +24,9 @@ _work/
 .mypy_cache/
 .pytest_cache/
 changelog.md
-.pixi/
 .vscode
 logs
 jobs.sql3
+# pixi environments
+.pixi
+*.egg-info

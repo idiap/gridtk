@@ -5,9 +5,9 @@ SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
 [![latest-docs](https://img.shields.io/badge/docs-latest-orange.svg)](https://gridtk.readthedocs.io/en/latest/)
-[![build](https://gitlab.idiap.ch/software/gridtk/badges/main/pipeline.svg)](https://gitlab.idiap.ch/software/gridtk/commits/main)
-[![coverage](https://gitlab.idiap.ch/software/gridtk/badges/main/coverage.svg)](https://www.idiap.ch/software/biosignal/docs/software/gridtk/main/coverage/index.html)
-[![repository](https://img.shields.io/badge/gitlab-project-0000c0.svg)](https://gitlab.idiap.ch/software/gridtk)
+[![build](https://github.com/idiap/gridtk/actions/workflows/build.yml/badge.svg)](https://github.com/idiap/gridtk/actions/workflows/build.yml)
+[![coverage](https://raw.githubusercontent.com/idiap/gridtk/python-coverage-comment-action-data/badge.svg)](https://htmlpreview.github.io/?https://github.com/idiap/gridtk/blob/python-coverage-comment-action-data/htmlcov/index.html)
+[![repository](https://img.shields.io/badge/github-project-0000c0.svg)](https://github.com/idiap/gridtk)
 
 # GridTK: SLURM Job Managetment for Humans
 
@@ -35,7 +35,7 @@ To install GridTK, open your terminal and run the following command:
 ```bash
 $ pixi global install pipx
 $ pixi global install python=3.12
-$ pipx install --force --python python3.12 'git+https://gitlab.idiap.ch/software/gridtk.git'
+$ pipx install --force --python python3.12 'git+https://github.com/idiap/gridtk.git'
 ```
 It is **not recommennded** to install GridTK using `pip install gridtk` in the
 same environment as your expeirments. GirdTK does not need to be installed in
