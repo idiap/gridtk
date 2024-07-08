@@ -135,6 +135,7 @@ dependencies: {dependencies}"""
         for grid_id, job in jobs_by_grid_id.items():
             if grid_id in job_statuses:
                 job.update(job_statuses[grid_id])
+        self.session.flush()
 
     def list_jobs(
         self,
@@ -200,3 +201,4 @@ dependencies: {dependencies}"""
                 Path(self.database).unlink()
             if self.logs_dir.exists() and len(os.listdir(self.logs_dir)) == 0:
                 shutil.rmtree(self.logs_dir)
+        self.engine.dispose()
