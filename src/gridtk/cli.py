@@ -60,6 +60,13 @@ def cli(ctx, database, logs_dir):
     ctx.meta["job_manager"] = JobManager(database=database, logs_dir=logs_dir)
 
 
+@cli.result_callback()
+def process_result(result, **kwargs):
+    """Delete the job manager from the context."""
+    ctx = click.get_current_context()
+    del ctx.meta["job_manager"]
+
+
 @cli.command(
     epilog="""\b
 Example:
