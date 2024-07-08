@@ -43,7 +43,7 @@ owner = ["Idiap Research Institute"]
 html_theme = "furo"
 
 html_theme_options = {
-    "source_edit_link": f"https://gitlab.idiap.ch/software/{project}/-/edit/main/doc/{{filename}}",
+    "source_edit_link": f"https://github.com/idiap/{project}/edit/main/doc/{{filename}}",
 }
 
 html_title = f"{project} {release}"

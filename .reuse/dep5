@@ -1,7 +1,7 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: gridtk
 Upstream-Contact: Andre Anjos <andre.anjos@idiap.ch>
-Source: https://gitlab.idiap.ch/software/gridtk/
+Source: https://github.com/idiap/gridtk/
 
 Files:
  pixi.lock
