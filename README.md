@@ -10,7 +10,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 [![coverage](https://raw.githubusercontent.com/idiap/gridtk/python-coverage-comment-action-data/badge.svg)](https://htmlpreview.github.io/?https://github.com/idiap/gridtk/blob/python-coverage-comment-action-data/htmlcov/index.html)
 [![repository](https://img.shields.io/badge/github-project-0000c0.svg)](https://github.com/idiap/gridtk)
 
-# GridTK: Slurm Job Managetment for Humans
+# GridTK: Slurm Job Management for Humans
 
 ## Introduction
 
@@ -36,9 +36,9 @@ To install GridTK, open your terminal and run the following command:
 ```bash
 $ pipx install gridtk
 ```
-It is **not recommennded** to install GridTK using `pip install gridtk` in the
-same environment as your expeirments. GirdTK does not need to be installed in
-the same environment as your experiments and its depencencies may conflict with
+It is **not recommended** to install GridTK using `pip install gridtk` in the
+same environment as your experiments. GirdTK does not need to be installed in
+the same environment as your experiments and its dependencies may conflict with
 your experiments' dependencies.
 
 ## Basic Usage
@@ -70,8 +70,8 @@ numbers always start with 1 which is easier to remember than the slurm job id.
 Run `gridtk submit --help` to see the list of `gridtk submit` specific options and run `sbatch --help` to see the full list of options for `sbatch`.
 
 Note that your slurm cluster may require you to specify a partition, an account,
-or anoher option. You can do so by adding them to `gridtk submit --accoount=myaccount --partition=mypartition job.sh`
-or setting default values using enviroment variables such as
+or another option. You can do so by adding them to `gridtk submit --account=myaccount --partition=mypartition job.sh`
+or setting default values using environment variables such as
 `SBATCH_ACCOUNT` and `SBATCH_PARTITION`.
 
 ### Monitoring Jobs
@@ -114,10 +114,10 @@ To stop a running or pending job, use the `gridtk stop` command:
 
 ```bash
 $ gridtk stop -j 1
-Stopped job 1 wiht slurm id 136132
+Stopped job 1 with slurm id 136132
 ```
 
-Stopped jobs will be still avaliable in the job list:
+Stopped jobs will be still available in the job list:
 ```bash
 $ gridtk list
   job-id    slurm-id  nodes    state          job-name    output                  dependencies    command
@@ -160,7 +160,8 @@ GridTK provides several advanced commands to help with more complex job
 management tasks. These include job dependencies, array jobs, and resource
 management.
 
-### Job Submission wihtout a Script
+### Job Submission without a Script
+
 Since GridTK keeps track of both the sbatch options and the command to run, you
 can skip creating a script and submit a job directly from the command line.
 This is done by using `---` (3 dashes) to separate the sbatch options from the command to
@@ -169,7 +170,7 @@ run:
 $ gridtk submit --job-name=gridtk-no-script --- echo 'Hello, GridTK!'
 2
 ```
-This syntax is unique to `girdtk submit` and is not supported by `sbatch`.
+This syntax is unique to `gridtk submit` and is not supported by `sbatch`.
 ```bash
 $ gridtk list
   job-id    slurm-id  nodes    state        job-name          output                            dependencies    command
@@ -193,9 +194,9 @@ echo 'Hello, GridTK!'
 
 Output file: logs/gridtk-no-script.136142.out
 ```
-This is a fast, convenient, and **recomended** way to submit a job without having to create a
-script and since everthing is tracked by GridTK, you still benefit from the same
-reproducibility gurantees.
+This is a fast, convenient, and **recommended** way to submit a job without having to create a
+script and since everything is tracked by GridTK, you still benefit from the same
+reproducibility guarantees.
 
 ### Job Dependencies
 
@@ -214,15 +215,15 @@ You can submit the same script N times using the `--repeat` flag:
 $ gridtk submit --repeat=3 job.sh
 ```
 This will submit 3 jobs with the same script and the same options where each job
-will depeend on the previous one. This is useful if your script can resume from
+will depend on the previous one. This is useful if your script can resume from
 a checkpoint and you want to run it effectively for a longer time than allowed
-by polciy.
+by policy.
 
 ### Monitoring Jobs
 
 While `gridtk list` and `gridtk report` are useful for checking the status of jobs,
 you might get more information about your jobs using `squeue`, `scontrol`, and `sacct`.
-Here are some usefull commands:
+Here are some useful commands:
 
 * Get information about a specific job: `scontrol show job <slurm_job_id>`
 * Get information about a completed or failed job: `sacct -j <slurm_job_id>`.
