@@ -2,7 +2,10 @@
 # SPDX-FileContributor: Amir Mohammadi  <amir.mohammadi@idiap.ch>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
+
 import re
+
+from typing import Optional
 
 
 def parse_array_indexes(indexes_str: str) -> list[int]:
@@ -36,7 +39,7 @@ def parse_array_indexes(indexes_str: str) -> list[int]:
     return result
 
 
-def job_ids_from_dep_str(dependency_string: str | None) -> list[int]:
+def job_ids_from_dep_str(dependency_string: Optional[str]) -> list[int]:
     """Extract job IDs from a dependency string."""
     if not dependency_string:
         return []

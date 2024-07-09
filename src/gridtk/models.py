@@ -2,6 +2,7 @@
 # SPDX-FileContributor: Amir Mohammadi  <amir.mohammadi@idiap.ch>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
+
 import json
 import re
 import shlex
@@ -11,6 +12,7 @@ import warnings
 
 from pathlib import Path
 from sqlite3 import Connection as SQLite3Connection
+from typing import Optional
 
 from sqlalchemy import Column, ForeignKey, Integer, String, Table, event
 from sqlalchemy.engine import Engine
@@ -80,7 +82,7 @@ class ObjectValue(TypeDecorator):
 
     def process_bind_param(self, value, dialect):
         if value is not None:
-            if isinstance(value, dict | list | tuple):
+            if isinstance(value, (dict, list, tuple)):
                 value = json.dumps(value)
             elif isinstance(value, Path):
                 value = str(value.absolute())
@@ -141,12 +143,12 @@ class Job(Base):
     command: Mapped[list] = mapped_column(ObjectValue)
     logs_dir: Mapped[Path] = mapped_column(ObjectValue)
     is_array_job: Mapped[bool]
-    dependencies_str: Mapped[str | None] = mapped_column(String(2048))
-    grid_id: Mapped[int | None]
-    state: Mapped[str | None] = mapped_column(String(30), default="UNKNOWN")
-    exit_code: Mapped[str | None]
-    nodes: Mapped[str | None]  # list of node names
-    array_task_ids: Mapped[list[int] | None] = mapped_column(ObjectValue)
+    dependencies_str: Mapped[Optional[str]] = mapped_column(String(2048))
+    grid_id: Mapped[Optional[int]]
+    state: Mapped[Optional[str]] = mapped_column(String(30), default="UNKNOWN")
+    exit_code: Mapped[Optional[str]]
+    nodes: Mapped[Optional[str]]  # list of node names
+    array_task_ids: Mapped[Optional[list[int]]] = mapped_column(ObjectValue)
     dependencies_jobdependency: Mapped[list[JobDependency]] = relationship(
         JobDependency,
         primaryjoin=id == JobDependency.job_id,  # type: ignore[attr-defined]
@@ -237,14 +239,17 @@ class Job(Base):
         ] + command
 
     def submit(self, session: Session = None):
-        with tempfile.NamedTemporaryFile(
-            mode="w+t", suffix=".sh", delete_on_close=False
-        ) as fh:
-            command = self.submitted_command(fh=fh, session=session)
-            output = subprocess.check_output(
-                command,
-                text=True,
-            )
+        with tempfile.NamedTemporaryFile(mode="w+t", suffix=".sh", delete=False) as fh:
+            try:
+                command = self.submitted_command(fh=fh, session=session)
+                output = subprocess.check_output(
+                    command,
+                    text=True,
+                )
+            finally:
+                # remove the temporary file here because we don't want it
+                # deleted after fh.close() is called
+                Path(fh.name).unlink(missing_ok=True)
         # find job ID from output
         # output is like b'Submitted batch job 123456789\n'
         self.grid_id = int(re.search("[0-9]+", output).group())
