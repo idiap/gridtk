@@ -11,7 +11,7 @@ build-backend = "hatchling.build"
 name = "gridtk"
 dynamic = ["version"]
 requires-python = ">=3.9"
-description = "GridTK: SLURM Job Managetment for Humans"
+description = "GridTK: Slurm Job Managetment for Humans"
 readme = "README.md"
 license = "GPL-3.0-or-later"
 authors = [
