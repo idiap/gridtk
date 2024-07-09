@@ -375,9 +375,9 @@ packages:
   requires_python: '>=3.7'
 - kind: pypi
   name: gridtk
-  version: 2.1.1.dev35+g97ecde7
+  version: 3.0.1.dev4+ge1d63ef
   path: .
-  sha256: c6c00e75434bfb7f19b891646b561340b966ce96112c3e9948071376b89f4141
+  sha256: 098b931aa522fe8a839ee2b94a621e244b55c28f03fc0d230afa1ed2f6ae175d
   requires_dist:
   - click~=8.1
   - sqlalchemy~=2.0
