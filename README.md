@@ -37,7 +37,7 @@ To install GridTK, open your terminal and run the following command:
 $ pipx install gridtk
 ```
 It is **not recommended** to install GridTK using `pip install gridtk` in the
-same environment as your experiments. GirdTK does not need to be installed in
+same environment as your experiments. GridTK does not need to be installed in
 the same environment as your experiments and its dependencies may conflict with
 your experiments' dependencies.
 
@@ -63,7 +63,7 @@ Submit the job using `gridtk submit`:
 $ gridtk submit job.sh
 1
 ```
-where `1` is the the local job id (not the slurm job id) for your job. The job
+where `1` is the local job id (not the slurm job id) for your job. The job
 numbers always start with 1 which is easier to remember than the slurm job id.
 
 `gridtk submit` is a drop-in replacement for `sbatch` and accepts the same options while adding its own.
