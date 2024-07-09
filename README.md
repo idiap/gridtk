@@ -10,22 +10,22 @@ SPDX-License-Identifier: GPL-3.0-or-later
 [![coverage](https://raw.githubusercontent.com/idiap/gridtk/python-coverage-comment-action-data/badge.svg)](https://htmlpreview.github.io/?https://github.com/idiap/gridtk/blob/python-coverage-comment-action-data/htmlcov/index.html)
 [![repository](https://img.shields.io/badge/github-project-0000c0.svg)](https://github.com/idiap/gridtk)
 
-# GridTK: SLURM Job Managetment for Humans
+# GridTK: Slurm Job Managetment for Humans
 
 ## Introduction
 
 GridTK is a powerful command-line tool designed to simplify the management of
-SLURM jobs. At its core, GridTK provides a drop-in replacement for `sbatch`,
+Slurm jobs. At its core, GridTK provides a drop-in replacement for `sbatch`,
 `gridtk submit`, which allows you to get started quickly. This
 tutorial will guide you through the process of using the `gridtk` script to
-efficiently manage your SLURM workloads. We will cover the basics of
+efficiently manage your Slurm workloads. We will cover the basics of
 installation, submission, monitoring, and various commands provided by GridTK.
 
 ## Prerequisites
 
 Before diving into GridTK, ensure you have the following prerequisites:
 
-1. A working SLURM setup.
+1. A working Slurm setup.
 2. [pipx](https://pipx.pypa.io/stable/) installed.
 3. GridTK installed (instructions provided below).
 
@@ -45,7 +45,7 @@ your experiments' dependencies.
 
 In this section, we will cover the basic commands and usage of the GridTK
 script. The primary goal is to help you get familiar with submitting,
-monitoring, and managing your SLURM jobs using GridTK.
+monitoring, and managing your Slurm jobs using GridTK.
 
 ### Submitting a Job
 
