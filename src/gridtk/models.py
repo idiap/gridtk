@@ -71,7 +71,7 @@ JOB_STATES_MAPPING = {
 """Some of these states are only shown when using scontrol or squeue but these
 commands do not provide info for finished commands.
 
-sacct only retuns these states https://slurm.schedmd.com/sacct.html#lbAG
+sacct only returns these states https://slurm.schedmd.com/sacct.html#lbAG
 """
 
 

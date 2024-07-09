@@ -281,7 +281,7 @@ def test_stop_jobs(mock_check_output, runner):
         mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
         result = runner.invoke(cli, ["stop", "--name", "gridtk"])
         assert_click_runner_result(result)
-        assert result.output == f"Stopped job 1 wiht slurm id {submit_job_id}\n"
+        assert result.output == f"Stopped job 1 with slurm id {submit_job_id}\n"
         mock_check_output.assert_called_with(["scancel", str(submit_job_id)])
 
 

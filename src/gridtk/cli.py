@@ -354,7 +354,7 @@ def job_filters(f_py=None, default_states=None):
         function = click.option(
             "--dependents/--no-dependents",
             default=False,
-            help="Select dependents jobs (jobs that depend on seleted jobs) as well.",
+            help="Select dependents jobs (jobs that depend on selected jobs) as well.",
         )(function)
         return function  # noqa: RET504
 
@@ -403,7 +403,7 @@ def stop(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
         for job in jobs:
-            click.echo(f"Stopped job {job.id} wiht slurm id {job.grid_id}")
+            click.echo(f"Stopped job {job.id} with slurm id {job.grid_id}")
         session.commit()
 
 
