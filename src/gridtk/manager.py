@@ -2,6 +2,7 @@
 # SPDX-FileContributor: Amir Mohammadi  <amir.mohammadi@idiap.ch>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
+
 """Implements a Slurm job manager. Jobs are kept track of in an SQL database
 and logs are written to a default logs folder.
 

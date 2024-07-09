@@ -8,13 +8,12 @@ import tempfile
 
 from collections import defaultdict
 from pathlib import Path
+from typing import Optional
 
 import click
 
-from clapper.click import AliasedGroup
 
-
-class CustomGroup(AliasedGroup):
+class CustomGroup(click.Group):
     """Custom command group that does not sort commands."""
 
     def list_commands(self, ctx: click.Context) -> list[str]:
@@ -22,13 +21,24 @@ class CustomGroup(AliasedGroup):
         return self.commands
 
     def get_command(self, ctx, cmd_name):
+        """get_command with prefix aliasing and name aliases."""
         cmd_name = {
             "sbatch": "submit",
             "ls": "list",
             "rm": "delete",
             "remove": "delete",
         }.get(cmd_name, cmd_name)
-        return super().get_command(ctx, cmd_name)
+        rv = click.Group.get_command(self, ctx, cmd_name)
+        if rv is not None:
+            return rv
+        matches = [x for x in self.list_commands(ctx) if x.startswith(cmd_name)]
+        if not matches:
+            return None
+
+        if len(matches) == 1:
+            return click.Group.get_command(self, ctx, matches[0])
+
+        ctx.fail(f"Too many matches: {', '.join(sorted(matches))}")  # noqa: RET503
 
 
 @click.group(
@@ -453,7 +463,7 @@ def report(
     states: list[str],
     names: list[str],
     dependents: bool,
-    array_idx: str | None,
+    array_idx: Optional[str],
 ):
     """Report on jobs in the queue."""
     from .manager import JobManager

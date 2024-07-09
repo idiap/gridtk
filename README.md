@@ -5,7 +5,7 @@ SPDX-FileContributor: Amir Mohammadi  <amir.mohammadi@idiap.ch>
 SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
-[![latest-docs](https://img.shields.io/badge/docs-latest-orange.svg)](https://gridtk.readthedocs.io/en/latest/)
+[![docs](https://img.shields.io/badge/docs-stable-orange.svg)](https://gridtk.readthedocs.io/en/stable/)
 [![build](https://github.com/idiap/gridtk/actions/workflows/build.yml/badge.svg)](https://github.com/idiap/gridtk/actions/workflows/build.yml)
 [![coverage](https://raw.githubusercontent.com/idiap/gridtk/python-coverage-comment-action-data/badge.svg)](https://htmlpreview.github.io/?https://github.com/idiap/gridtk/blob/python-coverage-comment-action-data/htmlcov/index.html)
 [![repository](https://img.shields.io/badge/github-project-0000c0.svg)](https://github.com/idiap/gridtk)
@@ -26,7 +26,7 @@ installation, submission, monitoring, and various commands provided by GridTK.
 Before diving into GridTK, ensure you have the following prerequisites:
 
 1. A working SLURM setup.
-2. [Pixi](https://pixi.sh) installed.
+2. [pipx](https://pipx.pypa.io/stable/) installed.
 3. GridTK installed (instructions provided below).
 
 ## Installation
@@ -34,14 +34,12 @@ Before diving into GridTK, ensure you have the following prerequisites:
 To install GridTK, open your terminal and run the following command:
 
 ```bash
-$ pixi global install pipx
-$ pixi global install python=3.12
-$ pipx install --force --python python3.12 'git+https://github.com/idiap/gridtk.git'
+$ pipx install gridtk
 ```
 It is **not recommennded** to install GridTK using `pip install gridtk` in the
 same environment as your expeirments. GirdTK does not need to be installed in
 the same environment as your experiments and its depencencies may conflict with
-your experiments.
+your experiments' dependencies.
 
 ## Basic Usage
 
