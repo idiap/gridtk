@@ -1,4 +1,5 @@
-# SPDX-FileCopyrightText: Copyright © 2023 Idiap Research Institute <contact@idiap.ch>
+# SPDX-FileCopyrightText: 2024 Idiap Research Institute <contact@idiap.ch>
+# SPDX-FileContributor: Amir Mohammadi  <amir.mohammadi@idiap.ch>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -7,7 +8,7 @@ version: 2
 build:
   os: "ubuntu-22.04"
   tools:
-    python: "3.12"
+    python: "3.9"
 
 python:
   install:

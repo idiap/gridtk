@@ -1,4 +1,5 @@
-# SPDX-FileCopyrightText: Copyright © 2023 Idiap Research Institute <contact@idiap.ch>
+# SPDX-FileCopyrightText: 2024 Idiap Research Institute <contact@idiap.ch>
+# SPDX-FileContributor: Amir Mohammadi  <amir.mohammadi@idiap.ch>
 # SPDX-FileContributor: Andre Anjos <andre.anjos@idiap.ch>
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
@@ -46,8 +47,3 @@ repos:
     rev: v3.0.2
     hooks:
       - id: reuse
-        exclude: |
-          (?x)(
-              ^.pixi/|
-              ^.pixi.lock|
-              )
