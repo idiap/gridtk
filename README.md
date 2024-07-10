@@ -26,7 +26,7 @@ installation, submission, monitoring, and various commands provided by GridTK.
 Before diving into GridTK, ensure you have the following prerequisites:
 
 1. A working Slurm setup.
-2. [pipx](https://pipx.pypa.io/stable/) installed.
+2. [Pixi](https://pixi.sh/) (recommended) or [pipx](https://pipx.pypa.io/stable/) installed.
 3. GridTK installed (instructions provided below).
 
 ## Installation
@@ -34,6 +34,11 @@ Before diving into GridTK, ensure you have the following prerequisites:
 To install GridTK, open your terminal and run the following command:
 
 ```bash
+# Install gridtk using pixi
+$ curl -fsSL https://pixi.sh/install.sh | bash # installs pixi
+$ pixi global install gridtk
+
+# Install gridtk using pipx
 $ pipx install gridtk
 ```
 It is **not recommended** to install GridTK using `pip install gridtk` in the
@@ -142,7 +147,7 @@ $ gridtk submit job.sh
 1
 
 $ gridtk stop -j 1
-Stopped job 1 wiht slurm id 136139
+Stopped job 1 with slurm id 136139
 
 $ gridtk resubmit -j 1
 Resubmitted job 1
