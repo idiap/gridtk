@@ -38,10 +38,13 @@ from .tools import job_ids_from_dep_str, parse_array_indexes
 def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
     """Retrieve the status of the jobs in the database."""
     status = dict()
-    output = subprocess.check_output(
-        ["sacct", "-j", ",".join([str(x) for x in grid_ids]), "--json"],
-        text=True,
-    )
+    try:
+        output = subprocess.check_output(
+            ["sacct", "-j", ",".join([str(x) for x in grid_ids]), "--json"],
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        return status
     for job in json.loads(output)["jobs"]:
         status[job["job_id"]] = job
     return status
