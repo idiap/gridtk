@@ -63,7 +63,7 @@ doctest = "sphinx-build -aEb doctest doc html/doctest"
 
 [tool.pixi.feature.test.tasks]
 test = "pytest -sv tests/"
-test-ci = "pytest -sv --cov-branch --cov-report xml --ignore '.profile' tests/"
+test-ci = "pytest -sv --cov-branch tests/"
 
 [tool.pixi.environments]
 default = { features = ["doc", "test"], solve-group = "default" }
@@ -161,8 +161,6 @@ convention = "numpy"
 
 [tool.pytest.ini_options]
 addopts = ["--cov=gridtk", "--cov-report=term-missing", "--import-mode=append"]
-junit_logging = "all"
-junit_log_passing_tests = false
 
 [tool.coverage.run]
 relative_files = true
