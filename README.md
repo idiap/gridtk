@@ -6,7 +6,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 -->
 
 [![docs](https://img.shields.io/badge/docs-stable-orange.svg)](https://gridtk.readthedocs.io/en/stable/)
-[![build](https://github.com/idiap/gridtk/actions/workflows/build.yml/badge.svg)](https://github.com/idiap/gridtk/actions/workflows/build.yml)
+[![tests](https://github.com/idiap/gridtk/actions/workflows/tests.yml/badge.svg)](https://github.com/idiap/gridtk/actions/workflows/tests.yml)
 [![coverage](https://raw.githubusercontent.com/idiap/gridtk/python-coverage-comment-action-data/badge.svg)](https://htmlpreview.github.io/?https://github.com/idiap/gridtk/blob/python-coverage-comment-action-data/htmlcov/index.html)
 [![repository](https://img.shields.io/badge/github-project-0000c0.svg)](https://github.com/idiap/gridtk)
 

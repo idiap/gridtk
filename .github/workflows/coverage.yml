@@ -7,7 +7,7 @@ name: Post coverage comment
 
 on:
   workflow_run:
-    workflows: ["build"]
+    workflows: ["tests"]
     types:
       - completed
 

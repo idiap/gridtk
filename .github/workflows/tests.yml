@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-name: build
+name: tests
 
 on:
   push:
@@ -57,7 +57,7 @@ jobs:
           pixi-version: v0.25.0
           environments: test
       - name: Run Tests
-        run: pixi run test-ci
+        run: pixi run -e test test-ci
       - name: Coverage comment
         id: coverage_comment
         uses: py-cov-action/python-coverage-comment-action@v3
@@ -89,3 +89,30 @@ jobs:
         run: pixi run doc
       - name: Run doctests
         run: pixi run doctest
+
+  test-packaging:
+    name: Package the project into a distributable file
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Install build dependencies
+        run: |
+          pip install --upgrade pip
+          pip install build
+      - name: Package the project to the dist dir
+        run: python -m build
+      - name: Try installing from the new dists
+        run: pip install dist/*.whl
+      - name: Produce a GitHub actions artifact (the distributable package)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
