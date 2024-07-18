@@ -25,6 +25,7 @@ import subprocess
 
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 import sqlalchemy
 
@@ -33,6 +34,37 @@ from sqlalchemy.orm import Session
 
 from .models import Base, Job, JobDependency
 from .tools import job_ids_from_dep_str, parse_array_indexes
+
+
+def parse_scontrol_output(output: str) -> dict[str, Any]:
+    """Parse scontrol output and return a dict similar to `sacct --json`."""
+    result: dict[str, Any] = dict()
+    for key_value in output.strip().split():
+        if "=" not in key_value:
+            continue
+        key, value = key_value.split("=", 1)
+        result[key] = value
+    # make results similar to sacct --json
+    result["state"] = {"current": [result["JobState"]], "reason": result["Reason"]}
+    result["derived_exit_code"] = {
+        "return_code": {"number": result["ExitCode"].split(":")[0]}
+    }
+    result["nodes"] = result["NodeList"]
+    if result["nodes"] == "(null)":
+        result["nodes"] = "None assigned"
+    return result
+
+
+def job_status_from_scontrol(job_id: int) -> dict:
+    """Retrieve the status of a job using scontrol."""
+    try:
+        # we don't use --json because it is not supported by older versions of scontrol
+        output = subprocess.check_output(
+            ["scontrol", "show", "job", str(job_id)], text=True
+        )
+    except subprocess.CalledProcessError:
+        return dict()
+    return parse_scontrol_output(output)
 
 
 def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
@@ -44,6 +76,10 @@ def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
             text=True,
         )
     except subprocess.CalledProcessError:
+        for job_id in grid_ids:
+            job_status = job_status_from_scontrol(job_id)
+            if job_status:
+                status[job_id] = job_status
         return status
     for job in json.loads(output)["jobs"]:
         status[job["job_id"]] = job
