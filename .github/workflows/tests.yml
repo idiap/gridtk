@@ -107,11 +107,11 @@ jobs:
           pixi-version: v0.25.0
           environments: doc
       - name: Clean previous docs
-        run: pixi run doc-clean
+        run: pixi run -e doc doc-clean
       - name: Build docs
-        run: pixi run doc
+        run: pixi run -e doc doc
       - name: Run doctests
-        run: pixi run doctest
+        run: pixi run -e doc doctest
 
   test-packaging:
     name: Package the project into a distributable file
