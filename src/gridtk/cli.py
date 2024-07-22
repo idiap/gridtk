@@ -41,6 +41,95 @@ class CustomGroup(click.Group):
         ctx.fail(f"Too many matches: {', '.join(sorted(matches))}")  # noqa: RET503
 
 
+def parse_job_ids(job_ids: str) -> list[int]:
+    """Parse the job ids."""
+    if not job_ids:
+        return []
+    try:
+        if "," in job_ids:
+            final_job_ids = []
+            for job_id in job_ids.split(","):
+                final_job_ids.extend(parse_job_ids(job_id))
+            return final_job_ids
+        if "-" in job_ids:
+            start, end_str = job_ids.split("-")
+            return list(range(int(start), int(end_str) + 1))
+        if "+" in job_ids:
+            start, length = job_ids.split("+")
+            end = int(start) + int(length)
+            return list(range(int(start), end + 1))
+        return [int(job_ids)]
+    except ValueError as e:
+        raise click.BadParameter(f"Invalid job id {job_ids}") from e
+
+
+def parse_states(states: str) -> list[str]:
+    """Normalize a list of comma-separated states to their long name format."""
+    from .models import JOB_STATES_MAPPING
+
+    if not states:
+        return []
+    states = states.upper()
+    if states == "ALL":
+        return list(JOB_STATES_MAPPING.values())
+    final_states = []
+    for state in states.split(","):
+        state = JOB_STATES_MAPPING.get(state, state)
+        if state not in JOB_STATES_MAPPING.values():
+            raise click.BadParameter(f"Invalid state: {state}")
+        final_states.append(state)
+    return final_states
+
+
+def job_ids_callback(ctx, param, value):
+    """Implement a callback for the job ids option."""
+    return parse_job_ids(value)
+
+
+def states_callback(ctx, param, value):
+    """Implement a callback for the states option."""
+    return parse_states(value)
+
+
+def job_filters(f_py=None, default_states=None):
+    """Filter jobs based on the provided function and default states."""
+    assert callable(f_py) or f_py is None
+    from .models import JOB_STATES_MAPPING
+
+    def _job_filters_decorator(function):
+        function = click.option(
+            "--name",
+            "names",
+            multiple=True,
+            help="Selects jobs based on their name. For multiple names, repeat this option.",
+        )(function)
+        function = click.option(
+            "-s",
+            "--state",
+            "states",
+            default=default_states,
+            help="Selects jobs based on their states separated by comma. Possible values are "
+            + ", ".join([f"{v} ({k})" for k, v in JOB_STATES_MAPPING.items()])
+            + " and ALL.",
+            callback=states_callback,
+        )(function)
+        function = click.option(
+            "-j",
+            "--jobs",
+            "job_ids",
+            help="Selects only these job ids, separated by comma.",  # TODO: explain range notation
+            callback=job_ids_callback,
+        )(function)
+        function = click.option(
+            "--dependents/--no-dependents",
+            default=False,
+            help="Select dependents jobs (jobs that depend on selected jobs) as well.",
+        )(function)
+        return function  # noqa: RET504
+
+    return _job_filters_decorator(f_py) if callable(f_py) else _job_filters_decorator
+
+
 @click.group(
     cls=CustomGroup,
     context_settings={
@@ -271,96 +360,6 @@ def submit(
         session.commit()
 
 
-def parse_job_ids(job_ids: str) -> list[int]:
-    """Parse the job ids."""
-    if not job_ids:
-        return []
-    try:
-        if "," in job_ids:
-            final_job_ids = []
-            for job_id in job_ids.split(","):
-                final_job_ids.extend(parse_job_ids(job_id))
-            return final_job_ids
-        if "-" in job_ids:
-            start, end_str = job_ids.split("-")
-            return list(range(int(start), int(end_str) + 1))
-        if "+" in job_ids:
-            start, length = job_ids.split("+")
-            end = int(start) + int(length)
-            return list(range(int(start), end + 1))
-        return [int(job_ids)]
-    except ValueError as e:
-        raise click.BadParameter(f"Invalid job id {job_ids}") from e
-
-
-def parse_states(states: str) -> list[str]:
-    """Normalize a list of comma-separated states to their long name format."""
-    from .models import JOB_STATES_MAPPING
-
-    if not states:
-        return []
-    states = states.upper()
-    if states == "ALL":
-        return list(JOB_STATES_MAPPING.values())
-    states_split = states.split(",")
-    final_states = []
-    for state in states_split:
-        state = JOB_STATES_MAPPING.get(state, state)
-        if state not in JOB_STATES_MAPPING.values():
-            raise click.BadParameter(f"Invalid state: {state}")
-        final_states.append(state)
-    return final_states
-
-
-def job_ids_callback(ctx, param, value):
-    """Implement a callback for the job ids option."""
-    return parse_job_ids(value)
-
-
-def states_callback(ctx, param, value):
-    """Implement a callback for the states option."""
-    return parse_states(value)
-
-
-def job_filters(f_py=None, default_states=None):
-    """Filter jobs based on the provided function and default states."""
-    assert callable(f_py) or f_py is None
-    from .models import JOB_STATES_MAPPING
-
-    def _job_filters_decorator(function):
-        function = click.option(
-            "--name",
-            "names",
-            multiple=True,
-            help="Selects jobs based on their name. For multiple names, repeat this option.",
-        )(function)
-        function = click.option(
-            "-s",
-            "--state",
-            "states",
-            default=default_states,
-            help="Selects jobs based on their states separated by comma. Possible values are "
-            + ", ".join([f"{v} ({k})" for k, v in JOB_STATES_MAPPING.items()])
-            + " and ALL.",
-            callback=states_callback,
-        )(function)
-        function = click.option(
-            "-j",
-            "--jobs",
-            "job_ids",
-            help="Selects only these job ids, separated by comma.",  # TODO: explain range notation
-            callback=job_ids_callback,
-        )(function)
-        function = click.option(
-            "--dependents/--no-dependents",
-            default=False,
-            help="Select dependents jobs (jobs that depend on selected jobs) as well.",
-        )(function)
-        return function  # noqa: RET504
-
-    return _job_filters_decorator(f_py) if callable(f_py) else _job_filters_decorator
-
-
 @cli.command()
 @job_filters(default_states="BF,CA,F,NF,OOM,TO")
 @click.pass_context
@@ -381,29 +380,6 @@ def resubmit(
         )
         for job in jobs:
             click.echo(f"Resubmitted job {job.id}")
-        session.commit()
-
-
-@cli.command()
-@job_filters
-@click.pass_context
-def stop(
-    ctx: click.Context,
-    job_ids: list[int],
-    states: list[str],
-    names: list[str],
-    dependents: bool,
-):
-    """Stop a job from running."""
-    from .manager import JobManager
-
-    job_manager: JobManager = ctx.meta["job_manager"]
-    with job_manager as session:
-        jobs = job_manager.stop_jobs(
-            job_ids=job_ids, states=states, names=names, dependents=dependents
-        )
-        for job in jobs:
-            click.echo(f"Stopped job {job.id} with slurm id {job.grid_id}")
         session.commit()
 
 
@@ -445,6 +421,52 @@ def list_jobs(
             )
             table["command"].append("gridtk submit " + " ".join(job.command))
         click.echo(tabulate(table, headers="keys"))
+        session.commit()
+
+
+@cli.command()
+@job_filters
+@click.pass_context
+def stop(
+    ctx: click.Context,
+    job_ids: list[int],
+    states: list[str],
+    names: list[str],
+    dependents: bool,
+):
+    """Stop a job from running."""
+    from .manager import JobManager
+
+    job_manager: JobManager = ctx.meta["job_manager"]
+    with job_manager as session:
+        jobs = job_manager.stop_jobs(
+            job_ids=job_ids, states=states, names=names, dependents=dependents
+        )
+        for job in jobs:
+            click.echo(f"Stopped job {job.id} with slurm id {job.grid_id}")
+        session.commit()
+
+
+@cli.command()
+@job_filters
+@click.pass_context
+def delete(
+    ctx: click.Context,
+    job_ids: list[int],
+    states: list[str],
+    names: list[str],
+    dependents: bool,
+):
+    """Delete a job from the queue."""
+    from .manager import JobManager
+
+    job_manager: JobManager = ctx.meta["job_manager"]
+    with job_manager as session:
+        jobs = job_manager.delete_jobs(
+            job_ids=job_ids, states=states, names=names, dependents=dependents
+        )
+        for job in jobs:
+            click.echo(f"Deleted job {job.id} with slurm id {job.grid_id}")
         session.commit()
 
 
@@ -499,29 +521,6 @@ def report(
                     if error.exists():
                         report_text += error.open().read() + "\n\n"
             pydoc.pager(report_text)
-        session.commit()
-
-
-@cli.command()
-@job_filters
-@click.pass_context
-def delete(
-    ctx: click.Context,
-    job_ids: list[int],
-    states: list[str],
-    names: list[str],
-    dependents: bool,
-):
-    """Delete a job from the queue."""
-    from .manager import JobManager
-
-    job_manager: JobManager = ctx.meta["job_manager"]
-    with job_manager as session:
-        jobs = job_manager.delete_jobs(
-            job_ids=job_ids, states=states, names=names, dependents=dependents
-        )
-        for job in jobs:
-            click.echo(f"Deleted job {job.id} with slurm id {job.grid_id}")
         session.commit()
 
 

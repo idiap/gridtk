@@ -24,6 +24,46 @@ def runner():
     return CliRunner()
 
 
+def _sbatch_output(job_id):
+    return f"Submitted batch job {job_id}\n"
+
+
+def _submit_job(*, runner, mock_check_output, job_id):
+    mock_check_output.return_value = _sbatch_output(job_id)
+    result = runner.invoke(cli, ["submit", "--wrap=sleep"])
+    assert_click_runner_result(result)
+    return result
+
+
+def _jobs_sacct_dict(job_ids, state, reason, nodes):
+    job_list = []
+    for job_id in job_ids:
+        job = {
+            "job_id": job_id,
+            "state": {"current": [state], "reason": reason},
+            "nodes": nodes,
+            "derived_exit_code": {
+                "status": ["SUCCESS"],
+                "return_code": {
+                    "number": 0,
+                },
+            },
+        }
+        job_list.append(job)
+
+    return {"jobs": job_list}
+
+
+def _pending_job_sacct_json(job_id):
+    return json.dumps(
+        _jobs_sacct_dict([job_id], "PENDING", "Unassigned", "None assigned")
+    )
+
+
+def _failed_job_sacct_json(job_id):
+    return json.dumps(_jobs_sacct_dict([job_id], "FAILED", "None", "node001"))
+
+
 def test_parse_array_indexes():
     # Simple range
     assert parse_array_indexes("0-15") == list(range(0, 16))
@@ -183,55 +223,6 @@ def test_submit_triple_dash(mock_check_output: Mock, runner):
     assert mock_check_output.call_args.kwargs == {"text": True}
 
 
-def _sbatch_output(job_id):
-    return f"Submitted batch job {job_id}\n"
-
-
-def _submit_job(*, runner, mock_check_output, job_id):
-    mock_check_output.return_value = _sbatch_output(job_id)
-    result = runner.invoke(cli, ["submit", "--wrap=sleep"])
-    assert_click_runner_result(result)
-    return result
-
-
-def _pending_job_sacct_json(job_id):
-    return json.dumps(
-        {
-            "jobs": [
-                {
-                    "job_id": job_id,
-                    "state": {"current": ["PENDING"], "reason": "Unassigned"},
-                    "nodes": "None assigned",
-                    "derived_exit_code": {
-                        "status": ["SUCCESS"],
-                        "return_code": {
-                            "number": 0,
-                        },
-                    },
-                }
-            ]
-        }
-    )
-
-
-def _failed_job_sacct_json(job_id):
-    return json.dumps(
-        {
-            "jobs": [
-                {
-                    "job_id": job_id,
-                    "state": {"current": ["FAILED"], "reason": "None"},
-                    "nodes": "node001",
-                    "derived_exit_code": {
-                        "status": ["SUCCESS"],
-                        "return_code": {"set": True, "infinite": False, "number": 0},
-                    },
-                }
-            ]
-        }
-    )
-
-
 @patch("subprocess.check_output")
 def test_list_jobs(mock_check_output, runner):
     with runner.isolated_filesystem():
@@ -298,6 +289,36 @@ def test_delete_jobs(mock_check_output, runner):
         assert_click_runner_result(result)
         assert result.output == f"Deleted job 1 with slurm id {submit_job_id}\n"
         mock_check_output.assert_called_with(["scancel", str(submit_job_id)])
+
+        # test if state filtering works
+        submit_job_id_1 = 9876544
+        _submit_job(
+            runner=runner,
+            mock_check_output=mock_check_output,
+            job_id=submit_job_id_1,
+        )
+        submit_job_id_2 = submit_job_id_1 + 1
+        _submit_job(
+            runner=runner,
+            mock_check_output=mock_check_output,
+            job_id=submit_job_id_2,
+        )
+        jobs = [
+            _jobs_sacct_dict([submit_job_id_1], "COMPLETED", "None", "node001")["jobs"][
+                0
+            ],
+            _jobs_sacct_dict([submit_job_id_2], "TIMEOUT", "None", "node002")["jobs"][
+                0
+            ],
+        ]
+        mock_check_output.side_effect = [
+            json.dumps({"jobs": jobs}),
+            "",  # for scancel
+        ]
+        result = runner.invoke(cli, ["delete", "-s", "CD"])
+        assert_click_runner_result(result)
+        assert result.output == f"Deleted job 1 with slurm id {submit_job_id_1}\n"
+        mock_check_output.assert_called_with(["scancel", str(submit_job_id_1)])
 
 
 @patch("subprocess.check_output")
