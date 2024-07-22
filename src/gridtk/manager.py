@@ -25,7 +25,7 @@ import subprocess
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import sqlalchemy
 
@@ -98,15 +98,26 @@ def get_dependent_jobs_recursive(jobs: Iterable[Job]) -> list[Job]:
 class JobManager:
     """Implements a job manager for Slurm."""
 
-    def __init__(self, database: Path, logs_dir: Path) -> None:
+    def __init__(
+        self, database: Path, logs_dir: Path, read_only: Optional[bool] = None
+    ) -> None:
         self.database = Path(database)
+        # check if database exists and is read-only
+        if (
+            read_only is None
+            and self.database.exists()
+            and not os.access(self.database, os.W_OK)
+        ):
+            read_only = True
+        self.read_only = read_only
         self.engine = create_engine(f"sqlite:///{self.database}", echo=False)
         self.logs_dir = Path(logs_dir)
         self.logs_dir.mkdir(exist_ok=True)
 
     def __enter__(self):
         # opens a new session and returns it
-        Base.metadata.create_all(self.engine)
+        if not self.read_only:
+            Base.metadata.create_all(self.engine)
         self._session = Session(self.engine)
         self._session.begin()
         return self._session
@@ -165,6 +176,8 @@ dependencies: {dependencies}"""
 
     def update_jobs(self) -> None:
         """Update the status of all jobs."""
+        if self.read_only:
+            return
         jobs_by_grid_id: dict[int, Job] = dict()
         query = self.session.query(Job)
         for job in query.all():

@@ -142,14 +142,14 @@ def job_filters(f_py=None, default_states=None):
     "--database",
     help="Path to the database file.",
     default=Path("jobs.sql3"),
-    type=click.Path(path_type=Path, file_okay=True, dir_okay=False, writable=True),
+    type=click.Path(path_type=Path, file_okay=True, dir_okay=False),
 )
 @click.option(
     "-l",
     "--logs-dir",
     help="Path to the logs directory.",
     default=Path("logs"),
-    type=click.Path(path_type=Path, file_okay=False, dir_okay=True, writable=True),
+    type=click.Path(path_type=Path, file_okay=False, dir_okay=True),
 )
 @click.pass_context
 def cli(ctx, database, logs_dir):
