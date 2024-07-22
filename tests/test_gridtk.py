@@ -4,8 +4,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import json
+import stat
 import traceback
 
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -238,6 +240,23 @@ def test_list_jobs(mock_check_output, runner):
         mock_check_output.assert_called_with(
             ["sacct", "-j", str(submit_job_id), "--json"], text=True
         )
+
+
+@patch("subprocess.check_output")
+def test_list_jobs_readonly_database(mock_check_output, runner):
+    with runner.isolated_filesystem():
+        submit_job_id = 9876543
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
+        )
+        # Simulate a readonly database
+        mock_check_output.side_effect = []
+        Path("jobs.sql3").chmod(stat.S_IREAD)
+        result = runner.invoke(cli, ["list"])
+        assert_click_runner_result(result)
+        # The job should be UNKNOWN because we can't query the slurm when the
+        # database is read-only
+        assert "UNKNOWN" in result.output
 
 
 @patch("subprocess.check_output")
