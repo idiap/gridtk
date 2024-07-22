@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Coverage for src/gridtk/models.py: 85%</title>
+    <title>Coverage for src/gridtk/models.py: 89%</title>
     <link rel="icon" sizes="32x32" href="favicon_32_cb_58284776.png">
     <link rel="stylesheet" href="style_cb_8e611ae1.css" type="text/css">
     <script src="coverage_html_cb_6fb7b396.js" defer></script>
@@ -12,7 +12,7 @@
     <div class="content">
         <h1>
             <span class="text">Coverage for </span><b>src/gridtk/models.py</b>:
-            <span class="pc_cov">85%</span>
+            <span class="pc_cov">89%</span>
         </h1>
         <aside id="help_panel_wrapper">
             <input id="help_panel_state" type="checkbox">
@@ -56,10 +56,10 @@
         </aside>
         <h2>
             <span class="text">135 statements &nbsp;</span>
-            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">122<span class="text"> run</span></button>
-            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">13<span class="text"> missing</span></button>
+            <button type="button" class="run button_toggle_run" value="run" data-shortcut="r" title="Toggle lines run">123<span class="text"> run</span></button>
+            <button type="button" class="mis show_mis button_toggle_mis" value="mis" data-shortcut="m" title="Toggle lines missing">12<span class="text"> missing</span></button>
             <button type="button" class="exc show_exc button_toggle_exc" value="exc" data-shortcut="x" title="Toggle lines excluded">0<span class="text"> excluded</span></button>
-            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">13<span class="text"> partial</span></button>
+            <button type="button" class="par run show_par button_toggle_par" value="par" data-shortcut="p" title="Toggle lines partially run">7<span class="text"> partial</span></button>
         </h2>
         <p class="text">
             <a id="prevFileLink" class="nav" href="z_51a3a667cc001d6a_manager_py.html">&#xab; prev</a> &nbsp; &nbsp;
@@ -67,7 +67,7 @@
             <a id="nextFileLink" class="nav" href="z_51a3a667cc001d6a_tools_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.0">coverage.py v7.6.0</a>,
-            created at 2024-07-18 12:29 +0000
+            created at 2024-07-22 10:04 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -117,7 +117,7 @@
     <p class="pln"><span class="n"><a id="t33" href="#t33">33</a></span><span class="t"><span class="com"># enable foreign key support in sqlite3</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t34" href="#t34">34</a></span><span class="t"><span class="com"># https://docs.sqlalchemy.org/en/20/dialects/sqlite.html#foreign-key-support</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t35" href="#t35">35</a></span><span class="t"><span class="op">@</span><span class="nam">event</span><span class="op">.</span><span class="nam">listens_for</span><span class="op">(</span><span class="nam">Engine</span><span class="op">,</span> <span class="str">"connect"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t"><span class="key">def</span> <span class="nam">set_sqlite_pragma</span><span class="op">(</span><span class="nam">dbapi_connection</span><span class="op">,</span> <span class="nam">connection_record</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">36&#x202F;&#x219B;&#x202F;35</span><span class="annotate long">line 36 didn't jump to line 35</span></span></p>
+    <p class="run"><span class="n"><a id="t36" href="#t36">36</a></span><span class="t"><span class="key">def</span> <span class="nam">set_sqlite_pragma</span><span class="op">(</span><span class="nam">dbapi_connection</span><span class="op">,</span> <span class="nam">connection_record</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t37" href="#t37">37</a></span><span class="t">    <span class="str">"""Enable foreign key support in sqlite3."""</span>&nbsp;</span><span class="r"></span></p>
     <p class="par run show_par"><span class="n"><a id="t38" href="#t38">38</a></span><span class="t">    <span class="key">if</span> <span class="nam">isinstance</span><span class="op">(</span><span class="nam">dbapi_connection</span><span class="op">,</span> <span class="nam">SQLite3Connection</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">38&#x202F;&#x219B;&#x202F;exit</span><span class="annotate long">line 38 didn't return from function 'set_sqlite_pragma' because the condition on line 38 was always true</span></span></p>
     <p class="run"><span class="n"><a id="t39" href="#t39">39</a></span><span class="t">        <span class="nam">cursor</span> <span class="op">=</span> <span class="nam">dbapi_connection</span><span class="op">.</span><span class="nam">cursor</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
@@ -152,7 +152,7 @@
     <p class="pln"><span class="n"><a id="t68" href="#t68">68</a></span><span class="t">    <span class="str">"TO"</span><span class="op">:</span> <span class="str">"TIMEOUT"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t69" href="#t69">69</a></span><span class="t">    <span class="str">"UN"</span><span class="op">:</span> <span class="str">"UNKNOWN"</span><span class="op">,</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t70" href="#t70">70</a></span><span class="t"><span class="op">}</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t"><span class="str">"""Some of these states are only shown when using scontrol or squeue but these</span>&nbsp;</span><span class="r"></span></p>
+    <p class="run"><span class="n"><a id="t71" href="#t71">71</a></span><span class="t"><span class="str">"""Some of these states are only shown when using scontrol or squeue but these</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t72" href="#t72">72</a></span><span class="t"><span class="str">commands do not provide info for finished commands.</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t73" href="#t73">73</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t74" href="#t74">74</a></span><span class="t"><span class="str">sacct only returns these states https://slurm.schedmd.com/sacct.html#lbAG</span>&nbsp;</span><span class="r"></span></p>
@@ -268,7 +268,7 @@
     <p class="pln"><span class="n"><a id="t184" href="#t184">184</a></span><span class="t">        <span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t185" href="#t185">185</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t186" href="#t186">186</a></span><span class="t">    <span class="op">@</span><span class="nam">property</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t187" href="#t187">187</a></span><span class="t">    <span class="key">def</span> <span class="nam">output_options</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">187&#x202F;&#x219B;&#x202F;186</span><span class="annotate long">line 187 didn't jump to line 186</span></span></p>
+    <p class="run"><span class="n"><a id="t187" href="#t187">187</a></span><span class="t">    <span class="key">def</span> <span class="nam">output_options</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t188" href="#t188">188</a></span><span class="t">        <span class="com"># check if it is an array job</span>&nbsp;</span><span class="r"></span></p>
     <p class="par run show_par"><span class="n"><a id="t189" href="#t189">189</a></span><span class="t">        <span class="key">if</span> <span class="nam">self</span><span class="op">.</span><span class="nam">is_array_job</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">189&#x202F;&#x219B;&#x202F;190</span><span class="annotate long">line 189 didn't jump to line 190 because the condition on line 189 was never true</span></span></p>
     <p class="mis show_mis"><span class="n"><a id="t190" href="#t190">190</a></span><span class="t">            <span class="nam">output</span> <span class="op">=</span> <span class="nam">error</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">logs_dir</span> <span class="op">/</span> <span class="fst">f"</span><span class="op">{</span><span class="nam">self</span><span class="op">.</span><span class="nam">name</span><span class="op">}</span><span class="fst">.%A-%a.out</span><span class="fst">"</span>&nbsp;</span><span class="r"></span></p>
@@ -277,7 +277,7 @@
     <p class="run"><span class="n"><a id="t193" href="#t193">193</a></span><span class="t">        <span class="key">return</span> <span class="nam">output</span><span class="op">,</span> <span class="nam">error</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t194" href="#t194">194</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t195" href="#t195">195</a></span><span class="t">    <span class="op">@</span><span class="nam">property</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t196" href="#t196">196</a></span><span class="t">    <span class="key">def</span> <span class="nam">command_in_bash</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span> <span class="op">-></span> <span class="nam">str</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">196&#x202F;&#x219B;&#x202F;195</span><span class="annotate long">line 196 didn't jump to line 195</span></span></p>
+    <p class="run"><span class="n"><a id="t196" href="#t196">196</a></span><span class="t">    <span class="key">def</span> <span class="nam">command_in_bash</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span> <span class="op">-></span> <span class="nam">str</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t197" href="#t197">197</a></span><span class="t">        <span class="key">if</span> <span class="str">"---"</span> <span class="key">not</span> <span class="key">in</span> <span class="nam">self</span><span class="op">.</span><span class="nam">command</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t198" href="#t198">198</a></span><span class="t">            <span class="key">return</span> <span class="str">""</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t199" href="#t199">199</a></span><span class="t">        <span class="nam">content</span> <span class="op">=</span> <span class="str">"#!/bin/bash\n"</span>&nbsp;</span><span class="r"></span></p>
@@ -323,7 +323,7 @@
     <p class="pln"><span class="n"><a id="t239" href="#t239">239</a></span><span class="t">        <span class="op">]</span> <span class="op">+</span> <span class="nam">command</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t240" href="#t240">240</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t241" href="#t241">241</a></span><span class="t">    <span class="key">def</span> <span class="nam">submit</span><span class="op">(</span><span class="nam">self</span><span class="op">,</span> <span class="nam">session</span><span class="op">:</span> <span class="nam">Session</span> <span class="op">=</span> <span class="key">None</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t242" href="#t242">242</a></span><span class="t">        <span class="key">with</span> <span class="nam">tempfile</span><span class="op">.</span><span class="nam">NamedTemporaryFile</span><span class="op">(</span><span class="nam">mode</span><span class="op">=</span><span class="str">"w+t"</span><span class="op">,</span> <span class="nam">suffix</span><span class="op">=</span><span class="str">".sh"</span><span class="op">,</span> <span class="nam">delete</span><span class="op">=</span><span class="key">False</span><span class="op">)</span> <span class="key">as</span> <span class="nam">fh</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">242&#x202F;&#x219B;&#x202F;255</span><span class="annotate long">line 242 didn't jump to line 255 because </span></span></p>
+    <p class="run"><span class="n"><a id="t242" href="#t242">242</a></span><span class="t">        <span class="key">with</span> <span class="nam">tempfile</span><span class="op">.</span><span class="nam">NamedTemporaryFile</span><span class="op">(</span><span class="nam">mode</span><span class="op">=</span><span class="str">"w+t"</span><span class="op">,</span> <span class="nam">suffix</span><span class="op">=</span><span class="str">".sh"</span><span class="op">,</span> <span class="nam">delete</span><span class="op">=</span><span class="key">False</span><span class="op">)</span> <span class="key">as</span> <span class="nam">fh</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t243" href="#t243">243</a></span><span class="t">            <span class="key">try</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t244" href="#t244">244</a></span><span class="t">                <span class="nam">command</span> <span class="op">=</span> <span class="nam">self</span><span class="op">.</span><span class="nam">submitted_command</span><span class="op">(</span><span class="nam">fh</span><span class="op">=</span><span class="nam">fh</span><span class="op">,</span> <span class="nam">session</span><span class="op">=</span><span class="nam">session</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t245" href="#t245">245</a></span><span class="t">                <span class="nam">output</span> <span class="op">=</span> <span class="nam">subprocess</span><span class="op">.</span><span class="nam">check_output</span><span class="op">(</span>&nbsp;</span><span class="r"></span></p>
@@ -362,7 +362,7 @@
     <p class="run"><span class="n"><a id="t278" href="#t278">278</a></span><span class="t">        <span class="key">return</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t279" href="#t279">279</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t280" href="#t280">280</a></span><span class="t">    <span class="op">@</span><span class="nam">property</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t281" href="#t281">281</a></span><span class="t">    <span class="key">def</span> <span class="nam">output_files</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">281&#x202F;&#x219B;&#x202F;280</span><span class="annotate long">line 281 didn't jump to line 280</span></span></p>
+    <p class="run"><span class="n"><a id="t281" href="#t281">281</a></span><span class="t">    <span class="key">def</span> <span class="nam">output_files</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t282" href="#t282">282</a></span><span class="t">        <span class="nam">output</span><span class="op">,</span> <span class="nam">_</span> <span class="op">=</span> <span class="nam">map</span><span class="op">(</span><span class="nam">str</span><span class="op">,</span> <span class="nam">self</span><span class="op">.</span><span class="nam">output_options</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="par run show_par"><span class="n"><a id="t283" href="#t283">283</a></span><span class="t">        <span class="key">if</span> <span class="key">not</span> <span class="nam">self</span><span class="op">.</span><span class="nam">is_array_job</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">283&#x202F;&#x219B;&#x202F;285</span><span class="annotate long">line 283 didn't jump to line 285 because the condition on line 283 was always true</span></span></p>
     <p class="run"><span class="n"><a id="t284" href="#t284">284</a></span><span class="t">            <span class="key">return</span> <span class="op">[</span><span class="nam">Path</span><span class="op">(</span><span class="nam">output</span><span class="op">.</span><span class="nam">replace</span><span class="op">(</span><span class="str">"%j"</span><span class="op">,</span> <span class="nam">str</span><span class="op">(</span><span class="nam">self</span><span class="op">.</span><span class="nam">grid_id</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">]</span>&nbsp;</span><span class="r"></span></p>
@@ -376,7 +376,7 @@
     <p class="mis show_mis"><span class="n"><a id="t292" href="#t292">292</a></span><span class="t">        <span class="key">return</span> <span class="nam">list</span><span class="op">(</span><span class="nam">map</span><span class="op">(</span><span class="nam">Path</span><span class="op">,</span> <span class="nam">files</span><span class="op">)</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t293" href="#t293">293</a></span><span class="t">&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t294" href="#t294">294</a></span><span class="t">    <span class="op">@</span><span class="nam">property</span>&nbsp;</span><span class="r"></span></p>
-    <p class="par run show_par"><span class="n"><a id="t295" href="#t295">295</a></span><span class="t">    <span class="key">def</span> <span class="nam">error_files</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"><span class="annotate short">295&#x202F;&#x219B;&#x202F;294</span><span class="annotate long">line 295 didn't jump to line 294</span></span></p>
+    <p class="run"><span class="n"><a id="t295" href="#t295">295</a></span><span class="t">    <span class="key">def</span> <span class="nam">error_files</span><span class="op">(</span><span class="nam">self</span><span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="pln"><span class="n"><a id="t296" href="#t296">296</a></span><span class="t">        <span class="com"># as of now error files are the same as output files but this could change.</span>&nbsp;</span><span class="r"></span></p>
     <p class="run"><span class="n"><a id="t297" href="#t297">297</a></span><span class="t">        <span class="key">return</span> <span class="nam">self</span><span class="op">.</span><span class="nam">output_files</span>&nbsp;</span><span class="r"></span></p>
 </main>
@@ -388,7 +388,7 @@
             <a class="nav" href="z_51a3a667cc001d6a_tools_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.6.0">coverage.py v7.6.0</a>,
-            created at 2024-07-18 12:29 +0000
+            created at 2024-07-22 10:04 +0000
         </p>
     </div>
 </footer>
