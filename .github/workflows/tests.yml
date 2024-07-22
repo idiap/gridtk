@@ -1,0 +1,141 @@
+# SPDX-FileCopyrightText: 2024 Idiap Research Institute <contact@idiap.ch>
+# SPDX-FileContributor: Amir Mohammadi  <amir.mohammadi@idiap.ch>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+  simpletests:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.25.0
+          environments: default
+      - name: Run Simple Tests
+        shell: pixi run -e default bash -e {0}
+        run: |
+          gridtk --help
+          gridtk submit --help
+          gridtk resubmit --help
+          gridtk stop --help
+          gridtk list --help
+          gridtk report --help
+          gridtk delete --help
+
+  tests:
+    strategy:
+      matrix:
+        pixi_environment: [test, test-py311, test-py310, test-py39]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.25.0
+          environments: ${{ matrix.pixi_environment }}
+      - name: Run Tests
+        run: pixi run -e ${{ matrix.pixi_environment }} test-ci
+        env:
+          COVERAGE_FILE: ".coverage.${{ matrix.pixi_environment }}"
+      - name: Store coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.pixi_environment }}
+          path: .coverage.${{ matrix.pixi_environment }}
+
+  merge-coverage:
+    name: Merge the coverage reports from multiple coverages
+    needs: tests
+    runs-on: ubuntu-22.04
+    permissions:
+      # Gives the action the necessary permissions for publishing new
+      # comments in pull requests.
+      pull-requests: write
+      # Gives the action the necessary permissions for editing existing
+      # comments (to avoid publishing multiple comments in the same PR)
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Retrieve coverage artifacts
+        uses: actions/download-artifact@v4
+        id: download
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+      - name: Coverage comment
+        id: coverage_comment
+        uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          MERGE_COVERAGE_FILES: true
+      - name: Store Pull Request comment to be posted
+        uses: actions/upload-artifact@v4
+        if: steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        with:
+          name: python-coverage-comment-action
+          path: python-coverage-comment-action.txt
+
+  doc:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          pixi-version: v0.25.0
+          environments: doc
+      - name: Clean previous docs
+        run: pixi run -e doc doc-clean
+      - name: Build docs
+        run: pixi run -e doc doc
+      - name: Run doctests
+        run: pixi run -e doc doctest
+
+  test-packaging:
+    name: Package the project into a distributable file
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Install build dependencies
+        run: |
+          pip install --upgrade pip
+          pip install build
+      - name: Package the project to the dist dir
+        run: python -m build
+      - name: Try installing from the new dists
+        run: pip install dist/*.whl
+      - name: Produce a GitHub actions artifact (the distributable package)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error

@@ -45,6 +45,7 @@ doc = [
   "myst-parser",
 ]
 test = ["pytest", "pytest-cov", "coverage"]
+dev = ["gridtk[doc,test]", "pre-commit", "ruff"]
 
 [project.scripts]
 gridtk = "gridtk.cli:cli"
@@ -56,6 +57,18 @@ platforms = ["linux-64"]
 [tool.pixi.pypi-dependencies]
 gridtk = { path = ".", editable = true }
 
+[tool.pixi.feature.py312.dependencies]
+python = "~=3.12.0"
+
+[tool.pixi.feature.py311.dependencies]
+python = "~=3.11.0"
+
+[tool.pixi.feature.py310.dependencies]
+python = "~=3.10.0"
+
+[tool.pixi.feature.py39.dependencies]
+python = "~=3.9.0"
+
 [tool.pixi.feature.doc.tasks]
 doc-clean = "rm -rf doc/api && rm -rf html"
 doc = "sphinx-build -aEW doc html"
@@ -63,16 +76,17 @@ doctest = "sphinx-build -aEb doctest doc html/doctest"
 
 [tool.pixi.feature.test.tasks]
 test = "pytest -sv tests/"
-test-ci = "pytest -sv --cov-branch --cov-report xml --ignore '.profile' tests/"
+test-ci = "pytest -sv --cov-branch tests/"
 
 [tool.pixi.environments]
-default = { features = ["doc", "test"], solve-group = "default" }
-self = { solve-group = "default" }
-test = { features = ["test"], solve-group = "default" }
-doc = { features = ["doc"], solve-group = "default" }
+default = { features = ["py312"], solve-group = "latest-python" }
+test = { features = ["test", "py312"], solve-group = "latest-python" }
+doc = { features = ["doc", "py312"], solve-group = "latest-python" }
+dev = { features = ["dev", "doc", "test", "py312"], solve-group = "latest-python" }
 
-[tool.pixi.dependencies]
-python = "3.9.*"
+test-py311 = { features = ["test", "py311"], solve-group = "python311" }
+test-py310 = { features = ["test", "py310"], solve-group = "python310" }
+test-py39 = { features = ["test", "py39"], solve-group = "python39" }
 
 [tool.hatch.version]
 source = "versioningit"
@@ -161,8 +175,6 @@ convention = "numpy"
 
 [tool.pytest.ini_options]
 addopts = ["--cov=gridtk", "--cov-report=term-missing", "--import-mode=append"]
-junit_logging = "all"
-junit_log_passing_tests = false
 
 [tool.coverage.run]
 relative_files = true
