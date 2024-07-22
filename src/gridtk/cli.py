@@ -76,7 +76,9 @@ def parse_states(states: str) -> list[str]:
     for state in states.split(","):
         state = JOB_STATES_MAPPING.get(state, state)
         if state not in JOB_STATES_MAPPING.values():
-            raise click.BadParameter(f"Invalid state: {state}")
+            raise click.BadParameter(
+                f"Invalid state: {state}\nValid values are: ALL {' '.join(list(JOB_STATES_MAPPING.keys())+list(JOB_STATES_MAPPING.values()))} or a comma (,) separated list of them."
+            )
         final_states.append(state)
     return final_states
 
@@ -410,12 +412,13 @@ def list_jobs(
             table["nodes"].append(job.nodes)
             table["state"].append(f"{job.state} ({job.exit_code})")
             table["job-name"].append(job.name)
-            table["output"].append(
-                job_manager.logs_dir
-                / job.output_files[0]
-                .resolve()
-                .relative_to(job_manager.logs_dir.resolve())
-            )
+            output = job_manager.logs_dir / job.output_files[0].resolve()
+            try:
+                output = output.relative_to(job_manager.logs_dir.resolve())
+            except ValueError:
+                pass
+
+            table["output"].append(output)
             table["dependencies"].append(
                 ",".join([str(dep_job) for dep_job in job.dependencies_ids])
             )
