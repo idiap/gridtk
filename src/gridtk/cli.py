@@ -412,9 +412,9 @@ def list_jobs(
             table["nodes"].append(job.nodes)
             table["state"].append(f"{job.state} ({job.exit_code})")
             table["job-name"].append(job.name)
-            output = job_manager.logs_dir / job.output_files[0].resolve()
+            output = job.output_files[0].resolve()
             try:
-                output = output.relative_to(job_manager.logs_dir.resolve())
+                output = output.relative_to(Path.cwd().resolve())
             except ValueError:
                 pass
 
