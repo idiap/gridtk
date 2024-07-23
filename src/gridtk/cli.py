@@ -119,7 +119,12 @@ def job_filters(f_py=None, default_states=None):
             "-j",
             "--jobs",
             "job_ids",
-            help="Selects only these job ids, separated by comma.",  # TODO: explain range notation
+            help=(
+                "Selects only these job ids, separated by comma. A range can also be "
+                "specified in the form 'start-end' ('-j 3-5' is equivalent to "
+                "'-j 3,4,5') or in the form 'start+length' ('-j 4+3' is equivalent to "
+                "'-j 4,5,6,7')."
+            ),
             callback=job_ids_callback,
         )(function)
         function = click.option(
