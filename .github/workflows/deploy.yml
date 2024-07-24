@@ -74,7 +74,7 @@ jobs:
       - name: Retrieve the package from GitHub actions artifacts
         uses: actions/download-artifact@v4
         with:
-          name: release-dist
+          name: release-dists
           path: dist/
       - name: Upload the release package to GitHub Release
         env:
