@@ -61,6 +61,8 @@ jobs:
         with:
           name: coverage-${{ matrix.pixi_environment }}
           path: .coverage.${{ matrix.pixi_environment }}
+          include-hidden-files: true
+          if-no-files-found: error
 
   merge-coverage:
     name: Merge the coverage reports from multiple coverages
