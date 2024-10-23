@@ -5,6 +5,7 @@
 
 import pydoc
 import tempfile
+import shutil
 
 from collections import defaultdict
 from pathlib import Path
@@ -392,6 +393,12 @@ def resubmit(
 
 @cli.command(name="list")
 @job_filters
+@click.option(
+    "--full-output",
+    is_flag=True,
+    default=False,
+    help="Show the full output without truncation.",
+)
 @click.pass_context
 def list_jobs(
     ctx: click.Context,
@@ -399,11 +406,20 @@ def list_jobs(
     states: list[str],
     names: list[str],
     dependents: bool,
+    full_output: bool,
 ):
     """List jobs in the queue, similar to sacct and squeue."""
     from tabulate import tabulate
 
     from .manager import JobManager
+
+    def truncate(content, max_width):
+        if len(content) > max_width:
+            return content[: max_width - 3] + "..."
+        return content
+
+    def get_terminal_width():
+        return shutil.get_terminal_size((80, 20)).columns
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
@@ -428,6 +444,17 @@ def list_jobs(
                 ",".join([str(dep_job) for dep_job in job.dependencies_ids])
             )
             table["command"].append("gridtk submit " + " ".join(job.command))
+
+        if not full_output:
+            terminal_width = get_terminal_width()
+            max_widths = {
+                "job-name": 20,
+                "output": 30,
+                "command": terminal_width - 100,
+            }
+            for key, max_width in max_widths.items():
+                table[key] = [truncate(content, max_width) for content in table[key]]
+
         click.echo(tabulate(table, headers="keys"))
         session.commit()
 

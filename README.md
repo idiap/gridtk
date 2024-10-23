@@ -251,3 +251,16 @@ or for `zsh` add the following line to your `~/.zshrc` file:
 ```bash
 eval "$(_GRIDTK_COMPLETE=zsh_source gridtk)"
 ```
+
+### Adjusting `gridtk list` Output to Fit Terminal Width
+
+By default, the `gridtk list` output now adjusts to fit the terminal width, with truncation or ellipses for long content. This ensures that the output remains readable and does not span multiple lines. If you wish to view the full output without truncation, you can use the `--full-output` option:
+
+```bash
+$ gridtk list --full-output
+  job-id    grid-id  nodes    state        job-name    output                  dependencies    command
+--------  ---------  -------  -----------  ----------  ----------------------  --------------  --------------------
+       1     136132  None     PENDING (0)  gridtk      logs/gridtk.136132.out                  gridtk submit job.sh
+```
+
+This enhancement improves readability and allows you to quickly parse job-related information without resizing your terminal or handling multiline outputs for each job.
