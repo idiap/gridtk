@@ -1,7 +1,0 @@
-{
-  "tasks": {
-    "test": "pixi run test",
-    "build": "pixi install",
-    "launch": "pixi run gridtk"
-  }
-}
