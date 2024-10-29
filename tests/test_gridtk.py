@@ -559,45 +559,6 @@ Deleted job 5 with slurm id {third_grid_id + 10}
         )
 
 
-# @patch("subprocess.check_output")
-# def test_list_jobs_with_truncation(mock_check_output, runner):
-#     with runner.isolated_filesystem():
-#         submit_job_id = 9876543
-#         _submit_job(
-#             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
-#         )
-
-#         mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
-#         result = runner.invoke(cli, ["list"])
-#         assert_click_runner_result(result)
-#         assert str(submit_job_id) in result.output
-#         assert "gridtk submit --wrap sleep" in result.output
-#         # wraped log file name
-#         assert "logs/gridtk.987 " in result.output
-#         mock_check_output.assert_called_with(
-#             ["sacct", "-j", str(submit_job_id), "--json"], text=True
-#         )
-
-
-# @patch("subprocess.check_output")
-# def test_list_jobs_with_full_output(mock_check_output, runner):
-#     with runner.isolated_filesystem():
-#         submit_job_id = 9876543
-#         _submit_job(
-#             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
-#         )
-
-#         mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
-#         result = runner.invoke(cli, ["list", "--full-output"])
-#         assert_click_runner_result(result)
-#         assert str(submit_job_id) in result.output
-#         assert "gridtk submit --wrap sleep" in result.output
-#         assert "logs/gridtk.9876543.out" in result.output
-#         mock_check_output.assert_called_with(
-#             ["sacct", "-j", str(submit_job_id), "--json"], text=True
-#         )
-
-
 if __name__ == "__main__":
     import sys
 
