@@ -4,8 +4,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import pydoc
-import tempfile
 import shutil
+import tempfile
 
 from collections import defaultdict
 from pathlib import Path
@@ -394,10 +394,18 @@ def resubmit(
 @cli.command(name="list")
 @job_filters
 @click.option(
+    "-l",
     "--full-output",
     is_flag=True,
     default=False,
     help="Show the full output without truncation.",
+)
+@click.option(
+    "-t",
+    "--truncate",
+    is_flag=True,
+    default=False,
+    help="Truncate the output to the terminal width",
 )
 @click.pass_context
 def list_jobs(
@@ -407,19 +415,17 @@ def list_jobs(
     names: list[str],
     dependents: bool,
     full_output: bool,
+    truncate: bool,
 ):
     """List jobs in the queue, similar to sacct and squeue."""
     from tabulate import tabulate
 
     from .manager import JobManager
 
-    def truncate(content, max_width):
+    def truncate_str(content: str, max_width: int) -> str:
         if len(content) > max_width:
             return content[: max_width - 3] + "..."
         return content
-
-    def get_terminal_width():
-        return shutil.get_terminal_size((80, 20)).columns
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
@@ -440,22 +446,36 @@ def list_jobs(
                 pass
 
             table["output"].append(output)
-            table["dependencies"].append(
+            dependencies_key = "dependencies"  # if full_output else "deps"
+            table[dependencies_key].append(
                 ",".join([str(dep_job) for dep_job in job.dependencies_ids])
             )
             table["command"].append("gridtk submit " + " ".join(job.command))
 
+        maxcolwidths = None
         if not full_output:
-            terminal_width = get_terminal_width()
+            terminal_width = shutil.get_terminal_size().columns
             max_widths = {
                 "job-name": 20,
-                "output": 30,
-                "command": terminal_width - 100,
+                "output": 15,
+                "command": terminal_width - 110,
             }
-            for key, max_width in max_widths.items():
-                table[key] = [truncate(content, max_width) for content in table[key]]
+            if truncate:
+                for key, max_width in max_widths.items():
+                    table[key] = [
+                        truncate_str(str(content), max_width) for content in table[key]
+                    ]
+            else:
+                maxcolwidths = [max_widths.get(key, 15) for key in table]
 
-        click.echo(tabulate(table, headers="keys"))
+        click.echo(
+            tabulate(
+                table,
+                headers="keys",
+                maxcolwidths=maxcolwidths,
+                maxheadercolwidths=None if full_output else 7,
+            )
+        )
         session.commit()
 
 
