@@ -436,7 +436,7 @@ def list_jobs(
         for job in jobs:
             table["job-id"].append(job.id)
             table["slurm-id"].append(job.grid_id)
-            table["nodes"].append(job.nodes)
+            table["nodes"].append(str(job.nodes))
             table["state"].append(f"{job.state} ({job.exit_code})")
             table["job-name"].append(job.name)
             output = job.output_files[0].resolve()
@@ -468,14 +468,15 @@ def list_jobs(
             else:
                 maxcolwidths = [max_widths.get(key, 15) for key in table]
 
-        click.echo(
-            tabulate(
-                table,
-                headers="keys",
-                maxcolwidths=maxcolwidths,
-                maxheadercolwidths=None if full_output else 7,
+        if table:
+            click.echo(
+                tabulate(
+                    table,
+                    headers="keys",
+                    maxcolwidths=maxcolwidths,
+                    maxheadercolwidths=None if full_output else 7,
+                )
             )
-        )
         session.commit()
 
 

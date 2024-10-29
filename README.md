@@ -252,15 +252,27 @@ or for `zsh` add the following line to your `~/.zshrc` file:
 eval "$(_GRIDTK_COMPLETE=zsh_source gridtk)"
 ```
 
-### Adjusting `gridtk list` Output to Fit Terminal Width
+### Adjusting `gridtk list` Output
 
-By default, the `gridtk list` output now adjusts to fit the terminal width, with truncation or ellipses for long content. This ensures that the output remains readable and does not span multiple lines. If you wish to view the full output without truncation, you can use the `--full-output` option:
+By default, the `gridtk list` output adjusts to fit the terminal width, with wraping. There are two options: `--truncate` and `--full-output`.
+The `--truncate` option truncates the output to fit the terminal width, while the `--full-output` option displays the full output without wrapping.
 
 ```bash
-$ gridtk list --full-output
-  job-id    grid-id  nodes    state        job-name    output                  dependencies    command
---------  ---------  -------  -----------  ----------  ----------------------  --------------  --------------------
-       1     136132  None     PENDING (0)  gridtk      logs/gridtk.136132.out                  gridtk submit job.sh
-```
+$ gridtk list
+  job-id    slurm-  nodes    state           job-    output           depende    command
+                id                           name                     ncies
+--------  --------  -------  --------------  ------  ---------------  ---------  --------------------
+       1    506976  None     UNKNOWN (None)  gridtk  logs/gridtk.506             gridtk submit job.sh
+                                                     976.out
 
-This enhancement improves readability and allows you to quickly parse job-related information without resizing your terminal or handling multiline outputs for each job.
+$ gridtk list --full-output
+  job-id    slurm-id  nodes    state          job-name    output                  dependencies    command
+--------  ----------  -------  -------------  ----------  ----------------------  --------------  --------------------
+       1      506976  hcne01   COMPLETED (0)  gridtk      logs/gridtk.506976.out                  gridtk submit job.sh
+
+$ gridtk list --truncate
+  job-id    slurm-  nodes    state          job-    output           depende    command
+                id                          name                     ncies
+--------  --------  -------  -------------  ------  ---------------  ---------  --------------------
+       1    506976  hcne01   COMPLETED (0)  gridtk  logs/gridtk....             gridtk submit job.sh
+```

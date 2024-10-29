@@ -228,6 +228,11 @@ def test_submit_triple_dash(mock_check_output: Mock, runner):
 @patch("subprocess.check_output")
 def test_list_jobs(mock_check_output, runner):
     with runner.isolated_filesystem():
+        # test when there are no jobs
+        result = runner.invoke(cli, ["list"])
+        assert_click_runner_result(result)
+        assert result.output == ""
+        # test when there are jobs
         submit_job_id = 9876543
         _submit_job(
             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
@@ -532,8 +537,9 @@ def test_list_jobs_with_truncation(mock_check_output, runner):
         result = runner.invoke(cli, ["list"])
         assert_click_runner_result(result)
         assert str(submit_job_id) in result.output
-        assert "gridtk submit --- sleep" in result.output
-        assert "logs/gridtk.9876543.out" in result.output
+        assert "gridtk submit --wrap sleep" in result.output
+        # truncated log file name
+        assert "logs/gridtk.987 " in result.output
         mock_check_output.assert_called_with(
             ["sacct", "-j", str(submit_job_id), "--json"], text=True
         )
@@ -551,7 +557,7 @@ def test_list_jobs_with_full_output(mock_check_output, runner):
         result = runner.invoke(cli, ["list", "--full-output"])
         assert_click_runner_result(result)
         assert str(submit_job_id) in result.output
-        assert "gridtk submit --- sleep" in result.output
+        assert "gridtk submit --wrap sleep" in result.output
         assert "logs/gridtk.9876543.out" in result.output
         mock_check_output.assert_called_with(
             ["sacct", "-j", str(submit_job_id), "--json"], text=True
