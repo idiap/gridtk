@@ -260,7 +260,7 @@ def test_list_jobs(mock_check_output, runner):
             ["sacct", "-j", str(submit_job_id), "--json"], text=True
         )
         # truncated command
-        assert "gridtk sub..\n" in result.output
+        assert "gridtk s..\n" in result.output
         # truncated log file name
         assert "logs/gridt.. " in result.output
 

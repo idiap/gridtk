@@ -478,13 +478,6 @@ def list_jobs(
             for key, value in max_widths.items():
                 if isinstance(value, float):
                     max_widths[key] = int(left_over_width * value)
-            left_over_width = (
-                terminal_width
-                - width_of_spaces
-                - sum(v for v in max_widths.values() if isinstance(v, int))
-            )
-            # distribute the left over width to the command column
-            max_widths["command"] += left_over_width
             maxcolwidths = [int(max_widths[key]) for key in table]
             if truncate:
                 for key, rows in table.items():

@@ -263,17 +263,17 @@ truncates the output to fit the terminal width.
 $ gridtk list
   job-id    slurm-id  nodes    state          job-name    output                  dependencies    command
 --------  ----------  -------  -------------  ----------  ----------------------  --------------  --------------------
-       1      506993  hcne01   COMPLETED (0)  gridtk      logs/gridtk.506993.out                  gridtk submit job.sh
+       1      506994  hcne01   COMPLETED (0)  gridtk      logs/gridtk.506994.out                  gridtk submit job.sh
 
 $ gridtk list --wrap  # --wrap or -w
-  job-id    slurm-  nodes    state      job-name    output               depende    command
-                id                                                       ncies
---------  --------  -------  ---------  ----------  -------------------  ---------  -------------
-       1    506993  hcne01   COMPLETED  gridtk      logs/gridtk.506993.             gridtk submit
-                             (0)                    out                             job.sh
+  job-id    slurm-  nodes    state     job-name    output             depende    command
+                id                                                    ncies
+--------  --------  -------  --------  ----------  -----------------  ---------  -------------
+       1    506994  hcne0    COMPLETE  gridtk      logs/gridtk.50699             gridtk submit
+                    1        D (0)                 4.out                         job.sh
 
 $ gridtk list --truncate # --truncate or -t
-  job-id    slur..  nodes    state     job-name    output              depe..    command
---------  --------  -------  --------  ----------  ------------------  --------  -----------------
-       1    506993  hcne01   COMPLE..  gridtk      logs/gridtk.5069..            gridtk submit j..
+  job-id    slur..  nodes    state    job-name    output            depe..    command
+--------  --------  -------  -------  ----------  ----------------  --------  -------------
+       1    506994  hc..     COMPL..  gridtk      logs/gridtk.50..            gridtk subm..
 ```
