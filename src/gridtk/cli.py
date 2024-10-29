@@ -394,11 +394,11 @@ def resubmit(
 @cli.command(name="list")
 @job_filters
 @click.option(
-    "-l",
-    "--full-output",
+    "-w",
+    "--wrap",
     is_flag=True,
     default=False,
-    help="Show the full output without truncation.",
+    help="Wrap the output to the terminal width",
 )
 @click.option(
     "-t",
@@ -414,7 +414,7 @@ def list_jobs(
     states: list[str],
     names: list[str],
     dependents: bool,
-    full_output: bool,
+    wrap: bool,
     truncate: bool,
 ):
     """List jobs in the queue, similar to sacct and squeue."""
@@ -424,7 +424,7 @@ def list_jobs(
 
     def truncate_str(content: str, max_width: int) -> str:
         if len(content) > max_width:
-            return content[: max_width - 3] + "..."
+            return content[: max_width - 3] + ".."
         return content
 
     job_manager: JobManager = ctx.meta["job_manager"]
@@ -432,7 +432,7 @@ def list_jobs(
         jobs = job_manager.list_jobs(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
-        table = defaultdict(list)
+        table: dict[str, list[str]] = defaultdict(list)
         for job in jobs:
             table["job-id"].append(job.id)
             table["slurm-id"].append(job.grid_id)
@@ -446,27 +446,56 @@ def list_jobs(
                 pass
 
             table["output"].append(output)
-            dependencies_key = "dependencies"  # if full_output else "deps"
-            table[dependencies_key].append(
+            table["dependencies"].append(
                 ",".join([str(dep_job) for dep_job in job.dependencies_ids])
             )
             table["command"].append("gridtk submit " + " ".join(job.command))
 
         maxcolwidths = None
-        if not full_output:
-            terminal_width = shutil.get_terminal_size().columns
+        full_output = not wrap and not truncate
+        if not full_output and table:
+            minimum_column_width = 7
+            width_of_spaces = (len(table) - 1) * 2
+            terminal_width = max(
+                len(table) * minimum_column_width + width_of_spaces,
+                shutil.get_terminal_size().columns,
+            )
             max_widths = {
-                "job-name": 20,
-                "output": 15,
-                "command": terminal_width - 110,
+                "job-id": minimum_column_width,
+                "slurm-id": minimum_column_width,
+                "nodes": 0.1,
+                "state": 0.15,
+                "job-name": 0.2,
+                "output": 0.3,
+                "dependencies": minimum_column_width,
+                "command": 0.25,
             }
+            left_over_width = (
+                terminal_width
+                - width_of_spaces
+                - sum(v for v in max_widths.values() if isinstance(v, int))
+            )
+            for key, value in max_widths.items():
+                if isinstance(value, float):
+                    max_widths[key] = int(left_over_width * value)
+            left_over_width = (
+                terminal_width
+                - width_of_spaces
+                - sum(v for v in max_widths.values() if isinstance(v, int))
+            )
+            # distribute the left over width to the command column
+            max_widths["command"] += left_over_width
+            maxcolwidths = [int(max_widths[key]) for key in table]
             if truncate:
-                for key, max_width in max_widths.items():
+                for key, rows in table.items():
                     table[key] = [
-                        truncate_str(str(content), max_width) for content in table[key]
+                        truncate_str(str(row), int(max_widths[key])) for row in rows
                     ]
-            else:
-                maxcolwidths = [max_widths.get(key, 15) for key in table]
+                # truncate column names
+                table = {
+                    truncate_str(key, int(max_widths[key])): value
+                    for key, value in table.items()
+                }
 
         if table:
             click.echo(
@@ -474,7 +503,7 @@ def list_jobs(
                     table,
                     headers="keys",
                     maxcolwidths=maxcolwidths,
-                    maxheadercolwidths=None if full_output else 7,
+                    maxheadercolwidths=maxcolwidths,
                 )
             )
         session.commit()
