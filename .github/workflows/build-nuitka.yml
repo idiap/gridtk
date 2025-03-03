@@ -1,0 +1,67 @@
+# SPDX-FileCopyrightText: 2025 Idiap Research Institute <contact@idiap.ch>
+# SPDX-FileContributor: Amir Mohammadi  <amir.mohammadi@idiap.ch>
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+name: Build with Nuitka
+
+on:
+  push:
+  pull_request:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -e .
+
+      - name: Build with Nuitka
+        uses: Nuitka/Nuitka-Action@main
+        with:
+          nuitka-version: main
+          script-name: src/gridtk/__main__.py
+          mode: standalone
+          # output-file: gridtk-linux
+          include-package: |
+            gridtk
+            sqlalchemy
+            tabulate
+            click
+
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gridtk-linux-executable
+          path: |
+            build/*.exe
+            build/*.bin
+            build/*.app/**/*
+          include-hidden-files: true
+
+      # # Add this step only for release events
+      # - name: Upload to GitHub Release
+      #   if: github.event_name == 'release'
+      #   uses: softprops/action-gh-release@v1
+      #   with:
+      #     files: build/gridtk-linux
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
