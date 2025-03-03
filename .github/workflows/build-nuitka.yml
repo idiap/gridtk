@@ -36,16 +36,17 @@ jobs:
           pip install .
 
       - name: Install Nuitka
-        run: pip install nuitka
-
-      - name: Install patchelf
-        run: apt-get update && apt-get install -y patchelf
+        run: |
+          apt-get update
+          apt-get install -y patchelf
+          pip install nuitka
 
       - name: Build with Nuitka
         run: |
-          python -m nuitka --standalone \
+          python -m nuitka --mode=app \
             --include-package=gridtk,sqlalchemy,tabulate,click,pydoc \
             --output-dir=build \
+            --output-filename=gridtk \
             src/gridtk/__main__.py
 
       - name: Upload artifact
@@ -56,11 +57,11 @@ jobs:
             build
           include-hidden-files: true
 
-      # # Add this step only for release events
-      # - name: Upload to GitHub Release
-      #   if: github.event_name == 'release'
-      #   uses: softprops/action-gh-release@v1
-      #   with:
-      #     files: build/gridtk-linux
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Add this step only for release events
+      - name: Upload to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
