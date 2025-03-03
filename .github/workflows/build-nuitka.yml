@@ -51,7 +51,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: gridtk-linux-executable
+          name: gridtk-executable
           path: |
             build
           include-hidden-files: true
