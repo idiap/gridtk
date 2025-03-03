@@ -38,6 +38,9 @@ jobs:
       - name: Install Nuitka
         run: pip install nuitka
 
+      - name: Install patchelf
+        run: apt-get update && apt-get install -y patchelf
+
       - name: Build with Nuitka
         run: |
           python -m nuitka --standalone \
