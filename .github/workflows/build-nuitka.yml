@@ -46,6 +46,7 @@ jobs:
             sqlalchemy
             tabulate
             click
+            pydoc
 
 
       - name: Upload artifact
