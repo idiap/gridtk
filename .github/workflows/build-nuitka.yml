@@ -18,18 +18,12 @@ jobs:
   build-linux-executable:
     name: Build Linux executable with Nuitka
     runs-on: ubuntu-latest
-    container: ubuntu:20.04
+    container: python:3.9-bullseye
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.9"
-          cache: "pip"
 
       - name: Install dependencies
         run: |
