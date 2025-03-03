@@ -15,7 +15,8 @@ permissions:
   contents: read
 
 jobs:
-  build-linux:
+  build-linux-executable:
+    name: Build Linux executable with Nuitka
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -52,9 +53,7 @@ jobs:
         with:
           name: gridtk-linux-executable
           path: |
-            build/*.exe
-            build/*.bin
-            build/*.app/**/*
+            build
           include-hidden-files: true
 
       # # Add this step only for release events
