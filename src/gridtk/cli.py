@@ -65,7 +65,7 @@ def parse_job_ids(job_ids: str) -> list[int]:
 
 def parse_states(states: str) -> list[str]:
     """Normalize a list of comma-separated states to their long name format."""
-    from .models import JOB_STATES_MAPPING
+    from gridtk.models import JOB_STATES_MAPPING
 
     if not states:
         return []
@@ -96,7 +96,7 @@ def states_callback(ctx, param, value):
 def job_filters(f_py=None, default_states=None):
     """Filter jobs based on the provided function and default states."""
     assert callable(f_py) or f_py is None
-    from .models import JOB_STATES_MAPPING
+    from gridtk.models import JOB_STATES_MAPPING
 
     def _job_filters_decorator(function):
         function = click.option(
@@ -161,7 +161,7 @@ def job_filters(f_py=None, default_states=None):
 @click.pass_context
 def cli(ctx, database, logs_dir):
     """GridTK command line interface."""
-    from .manager import JobManager
+    from gridtk.manager import JobManager
 
     ctx.meta["job_manager"] = JobManager(database=database, logs_dir=logs_dir)
 
@@ -325,7 +325,7 @@ def submit(
     **kwargs,
 ):
     """Submit a job to the queue."""
-    from .manager import JobManager
+    from gridtk.manager import JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
     # reconstruct the command with kwargs and script
@@ -378,7 +378,7 @@ def resubmit(
     dependents: bool,
 ):
     """Resubmit a job to the queue."""
-    from .manager import JobManager
+    from gridtk.manager import JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
@@ -403,7 +403,7 @@ def list_jobs(
     """List jobs in the queue, similar to sacct and squeue."""
     from tabulate import tabulate
 
-    from .manager import JobManager
+    from gridtk.manager import JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
@@ -443,7 +443,7 @@ def stop(
     dependents: bool,
 ):
     """Stop a job from running."""
-    from .manager import JobManager
+    from gridtk.manager import JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
@@ -466,7 +466,7 @@ def delete(
     dependents: bool,
 ):
     """Delete a job from the queue."""
-    from .manager import JobManager
+    from gridtk.manager import JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
@@ -496,7 +496,7 @@ def report(
     array_idx: Optional[str],
 ):
     """Report on jobs in the queue."""
-    from .manager import JobManager
+    from gridtk.manager import JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:

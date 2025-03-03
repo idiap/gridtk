@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from .cli import cli
+from gridtk.cli import cli
 
 if __name__ == "__main__":
     cli()

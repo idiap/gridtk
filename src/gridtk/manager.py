@@ -32,8 +32,8 @@ import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from .models import Base, Job, JobDependency
-from .tools import job_ids_from_dep_str, parse_array_indexes
+from gridtk.models import Base, Job, JobDependency
+from gridtk.tools import job_ids_from_dep_str, parse_array_indexes
 
 
 def parse_scontrol_output(output: str) -> dict[str, Any]:

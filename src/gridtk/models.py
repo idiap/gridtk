@@ -27,7 +27,7 @@ from sqlalchemy.orm import (
 )
 from sqlalchemy.types import TypeDecorator
 
-from .tools import job_ids_from_dep_str, replace_job_ids_in_dep_str
+from gridtk.tools import job_ids_from_dep_str, replace_job_ids_in_dep_str
 
 
 # enable foreign key support in sqlite3
