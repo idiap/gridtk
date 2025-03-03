@@ -25,6 +25,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Configure Git
+        run: |
+          git config --global --add safe.directory $(pwd)
+          git fetch --tags --force
+          git describe --tags
+
       - name: Install dependencies
         run: |
           pip install .
