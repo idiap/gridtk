@@ -142,6 +142,7 @@ def job_filters(f_py=None, default_states=None):
     context_settings={
         "show_default": True,
         "help_option_names": ["--help", "-h"],
+        "auto_envvar_prefix": "GRIDTK",
     },
 )
 @click.option(

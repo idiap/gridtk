@@ -198,6 +198,26 @@ This is a fast, convenient, and **recommended** way to submit a job without havi
 script and since everything is tracked by GridTK, you still benefit from the same
 reproducibility guarantees.
 
+### Environment Variables for CLI Options
+
+While sbatch already allows providing values for some options through `SBATCH_` prefixed environment variables, not all options are supported. GridTK adds support for all CLI options through the `GRIDTK_SUBMIT_` prefix. For example:
+
+```bash
+# Set default email notification settings
+export GRIDTK_SUBMIT_MAIL_USER=your.email@example.com
+export GRIDTK_SUBMIT_MAIL_TYPE=END
+
+# Use debug partition by default
+export GRIDTK_SUBMIT_PARTITION=debug
+
+# Now submit a job - it will use these settings automatically
+gridtk submit job.sh
+```
+
+This is useful when you have a set of options that you always want to use, but don't want to specify them every time you submit a job.
+
+Of course, other gridtk commands such as `gridtk resubmit` options can also be set using environment variables like: `export GRIDTK_RESUBMIT_STATE=ALL`.
+
 ### Job Dependencies
 
 To submit a job that depends on another job, use the `--dependency` flag:

@@ -203,6 +203,45 @@ def test_submit_wrap(mock_check_output, runner):
 
 
 @patch("subprocess.check_output")
+def test_submit_with_env_vars(mock_check_output: Mock, runner):
+    """Test that environment variables with GRIDTK_SUBMIT_ prefix are properly converted to CLI options."""
+    mock_check_output.return_value = _sbatch_output(123456789)
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli,
+            ["submit", "job.sh"],
+            env={
+                "GRIDTK_SUBMIT_MAIL_USER": "test@example.com",
+                "GRIDTK_SUBMIT_MAIL_TYPE": "END",
+                "GRIDTK_SUBMIT_PARTITION": "debug",
+            },
+        )
+
+        assert_click_runner_result(result)
+        assert "1" in result.output
+
+    mock_check_output.assert_called_with(
+        [
+            "sbatch",
+            "--job-name",
+            "gridtk",
+            "--output",
+            "logs/gridtk.%j.out",
+            "--error",
+            "logs/gridtk.%j.out",
+            "--mail-type",
+            "END",
+            "--mail-user",
+            "test@example.com",
+            "--partition",
+            "debug",
+            "job.sh",
+        ],
+        text=True,
+    )
+
+
+@patch("subprocess.check_output")
 def test_submit_triple_dash(mock_check_output: Mock, runner):
     mock_check_output.return_value = _sbatch_output(123456789)
     with runner.isolated_filesystem():
