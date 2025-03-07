@@ -271,3 +271,29 @@ or for `zsh` add the following line to your `~/.zshrc` file:
 ```bash
 eval "$(_GRIDTK_COMPLETE=zsh_source gridtk)"
 ```
+
+### Adjusting `gridtk list` Output
+
+By default, `gridtk list` outputs a table which migh not fit the terminal width.
+You can adjust the output using the `--wrap` and `--truncate` flags. The `--wrap`
+flag wraps the output to fit the terminal width, while the `--truncate` flag
+truncates the output to fit the terminal width.
+
+```bash
+$ gridtk list
+  job-id    slurm-id  nodes    state          job-name    output                  dependencies    command
+--------  ----------  -------  -------------  ----------  ----------------------  --------------  --------------------
+       1      506994  hcne01   COMPLETED (0)  gridtk      logs/gridtk.506994.out                  gridtk submit job.sh
+
+$ gridtk list --wrap  # --wrap or -w
+  job-id    slurm-  nodes    state     job-name    output             depende    command
+                id                                                    ncies
+--------  --------  -------  --------  ----------  -----------------  ---------  -------------
+       1    506994  hcne0    COMPLETE  gridtk      logs/gridtk.50699             gridtk submit
+                    1        D (0)                 4.out                         job.sh
+
+$ gridtk list --truncate # --truncate or -t
+  job-id    slur..  nodes    state    job-name    output            depe..    command
+--------  --------  -------  -------  ----------  ----------------  --------  -------------
+       1    506994  hc..     COMPL..  gridtk      logs/gridtk.50..            gridtk subm..
+```

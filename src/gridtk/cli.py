@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import pydoc
+import shutil
 import tempfile
 
 from collections import defaultdict
@@ -393,6 +394,20 @@ def resubmit(
 
 @cli.command(name="list")
 @job_filters
+@click.option(
+    "-w",
+    "--wrap",
+    is_flag=True,
+    default=False,
+    help="Wrap the output to the terminal width",
+)
+@click.option(
+    "-t",
+    "--truncate",
+    is_flag=True,
+    default=False,
+    help="Truncate the output to the terminal width",
+)
 @click.pass_context
 def list_jobs(
     ctx: click.Context,
@@ -400,22 +415,29 @@ def list_jobs(
     states: list[str],
     names: list[str],
     dependents: bool,
+    wrap: bool,
+    truncate: bool,
 ):
     """List jobs in the queue, similar to sacct and squeue."""
     from tabulate import tabulate
 
     from .manager import JobManager
 
+    def truncate_str(content: str, max_width: int) -> str:
+        if len(content) > max_width:
+            return content[: max_width - 3] + ".."
+        return content
+
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
         jobs = job_manager.list_jobs(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
-        table = defaultdict(list)
+        table: dict[str, list[str]] = defaultdict(list)
         for job in jobs:
             table["job-id"].append(job.id)
             table["slurm-id"].append(job.grid_id)
-            table["nodes"].append(job.nodes)
+            table["nodes"].append(str(job.nodes))
             table["state"].append(f"{job.state} ({job.exit_code})")
             table["job-name"].append(job.name)
             output = job.output_files[0].resolve()
@@ -429,7 +451,55 @@ def list_jobs(
                 ",".join([str(dep_job) for dep_job in job.dependencies_ids])
             )
             table["command"].append("gridtk submit " + " ".join(job.command))
-        click.echo(tabulate(table, headers="keys"))
+
+        maxcolwidths = None
+        full_output = not wrap and not truncate
+        if not full_output and table:
+            minimum_column_width = 7
+            width_of_spaces = (len(table) - 1) * 2
+            terminal_width = max(
+                len(table) * minimum_column_width + width_of_spaces,
+                shutil.get_terminal_size().columns,
+            )
+            max_widths = {
+                "job-id": minimum_column_width,
+                "slurm-id": minimum_column_width,
+                "nodes": 0.1,
+                "state": 0.15,
+                "job-name": 0.2,
+                "output": 0.3,
+                "dependencies": minimum_column_width,
+                "command": 0.25,
+            }
+            left_over_width = (
+                terminal_width
+                - width_of_spaces
+                - sum(v for v in max_widths.values() if isinstance(v, int))
+            )
+            for key, value in max_widths.items():
+                if isinstance(value, float):
+                    max_widths[key] = int(left_over_width * value)
+            maxcolwidths = [int(max_widths[key]) for key in table]
+            if truncate:
+                for key, rows in table.items():
+                    table[key] = [
+                        truncate_str(str(row), int(max_widths[key])) for row in rows
+                    ]
+                # truncate column names
+                table = {
+                    truncate_str(key, int(max_widths[key])): value
+                    for key, value in table.items()
+                }
+
+        if table:
+            click.echo(
+                tabulate(
+                    table,
+                    headers="keys",
+                    maxcolwidths=maxcolwidths,
+                    maxheadercolwidths=maxcolwidths,
+                )
+            )
         session.commit()
 
 
