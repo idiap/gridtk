@@ -18,11 +18,11 @@ jobs:
   simpletests:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Setup Pixi
-        uses: prefix-dev/setup-pixi@v0.8.4
+        uses: prefix-dev/setup-pixi@v0.9.0
         with:
           pixi-version: v0.25.0
           environments: default
@@ -44,11 +44,11 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Setup Pixi
-        uses: prefix-dev/setup-pixi@v0.8.4
+        uses: prefix-dev/setup-pixi@v0.9.0
         with:
           pixi-version: v0.25.0
           environments: ${{ matrix.pixi_environment }}
@@ -77,9 +77,9 @@ jobs:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Retrieve coverage artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         id: download
         with:
           pattern: coverage-*
@@ -100,11 +100,11 @@ jobs:
   doc:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Setup Pixi
-        uses: prefix-dev/setup-pixi@v0.8.4
+        uses: prefix-dev/setup-pixi@v0.9.0
         with:
           pixi-version: v0.25.0
           environments: doc
@@ -120,7 +120,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Install python
