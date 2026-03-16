@@ -9,6 +9,21 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [3.1.0](https://github.com/idiap/gridtk/compare/v3.0.1...v3.1.0) (2026-03-16)
+
+
+### Features
+
+* CLI options can be supplied using env vars ([7834627](https://github.com/idiap/gridtk/commit/7834627c404e6e942f9bba350a50bbb825f99666))
+* options to adjust gridtk list output to fit terminal width ([#15](https://github.com/idiap/gridtk/issues/15)) ([f324491](https://github.com/idiap/gridtk/commit/f3244913b5a96346cd441663c9f2170dd66b0fb8)), closes [#13](https://github.com/idiap/gridtk/issues/13)
+
+
+### Bug Fixes
+
+* explicitly speficy the sphinx.configuration key in Read the Docs setup ([ae6b0ae](https://github.com/idiap/gridtk/commit/ae6b0ae42930dd58e420db524d4fdbd47c247c40))
+* show feedback when gridtk resubmit finds no matching jobs ([#24](https://github.com/idiap/gridtk/issues/24)) ([a5801d7](https://github.com/idiap/gridtk/commit/a5801d754309852b40627179f897a326b37036c9)), closes [#14](https://github.com/idiap/gridtk/issues/14)
+* use squeue as primary job status source over sacct ([#25](https://github.com/idiap/gridtk/issues/25)) ([e3a91ef](https://github.com/idiap/gridtk/commit/e3a91ef9cdc0829f2b5fddbaead809199c4923c2)), closes [#17](https://github.com/idiap/gridtk/issues/17)
+
 ## [3.0.1](https://github.com/idiap/gridtk/compare/v3.0.0...v3.0.1) (2024-07-23)
 
 
