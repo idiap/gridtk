@@ -26,16 +26,29 @@ installation, submission, monitoring, and various commands provided by GridTK.
 Before diving into GridTK, ensure you have the following prerequisites:
 
 1. A working Slurm setup.
-2. [pipx](https://pipx.pypa.io/stable/) installed.
+2. [uv](https://docs.astral.sh/uv/) installed (recommended) or [pipx](https://pipx.pypa.io/stable/).
 3. GridTK installed (instructions provided below).
 
 ## Installation
 
-To install GridTK, open your terminal and run the following command:
+The recommended way to install GridTK is using `uv`:
+
+```bash
+$ uv tool install gridtk
+```
+
+Or run it directly without installing:
+
+```bash
+$ uvx gridtk --help
+```
+
+Alternatively, you can use `pipx`:
 
 ```bash
 $ pipx install gridtk
 ```
+
 It is **not recommended** to install GridTK using `pip install gridtk` in the
 same environment as your experiments. GridTK does not need to be installed in
 the same environment as your experiments and its dependencies may conflict with
