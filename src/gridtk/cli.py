@@ -695,7 +695,7 @@ def wait(ctx, job_ids, states, names, dependents, interval):
                 for job in jobs:
                     click.echo(f"Job {job.id}: {job.state} ({job.exit_code})")
                 if any_failed:
-                    ctx.exit(1)
+                    raise SystemExit(1)
                 return
 
             # Show progress
