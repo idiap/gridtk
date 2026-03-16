@@ -100,24 +100,24 @@ def no_jobs_message(
     job_ids: list[int],
     states: list[str],
     names: list[str],
+    default_states: bool = False,
 ) -> str:
     """Build a helpful message when no jobs match the given filters."""
     msg = f"No jobs were {action}."
-    filters = []
-    if job_ids:
-        job_ids_str = ",".join(str(j) for j in job_ids)
-        filters.append(f"--jobs {job_ids_str}")
-    if states:
-        states_str = ",".join(states)
-        filters.append(f"--state {states_str}")
-    if names:
-        names_str = " --name ".join(names)
-        filters.append(f"--name {names_str}")
-    if filters:
-        filters_str = " ".join(filters)
-        msg += f" Active filters: {filters_str}"
-    else:
-        msg += " No jobs exist in the database."
+    if states and default_states:
+        msg += (
+            " Note: the default state filter is active."
+            " Use --state all to include all jobs."
+        )
+    elif job_ids or states or names:
+        filters = []
+        if job_ids:
+            filters.append(f"--jobs {','.join(str(j) for j in job_ids)}")
+        if states:
+            filters.append(f"--state {','.join(states)}")
+        if names:
+            filters.append(f"--name {' --name '.join(names)}")
+        msg += f" Active filters: {' '.join(filters)}"
     return msg
 
 
@@ -417,7 +417,11 @@ def resubmit(
         if not jobs:
             click.echo(
                 no_jobs_message(
-                    "resubmitted", job_ids=job_ids, states=states, names=names
+                    "resubmitted",
+                    job_ids=job_ids,
+                    states=states,
+                    names=names,
+                    default_states=True,
                 )
             )
         for job in jobs:

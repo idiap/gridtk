@@ -287,7 +287,6 @@ def test_list_jobs(mock_check_output, runner):
         result = runner.invoke(cli, ["list"])
         assert_click_runner_result(result)
         assert "No jobs were found." in result.output
-        assert "No jobs exist in the database." in result.output
 
         # test when there are jobs
         submit_job_id = 9876543
@@ -498,7 +497,8 @@ def test_resubmit_no_jobs(mock_check_output, runner):
         result = runner.invoke(cli, ["resubmit"])
         assert_click_runner_result(result)
         assert "No jobs were resubmitted." in result.output
-        assert "Active filters:" in result.output
+        assert "default state filter" in result.output
+        assert "--state all" in result.output
 
 
 @patch("subprocess.check_output")
