@@ -24,7 +24,7 @@ jobs:
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@v0.9.2
         with:
-          pixi-version: v0.25.0
+          pixi-version: v0.65.0
           environments: default
       - name: Run Simple Tests
         shell: pixi run -e default bash -e {0}
@@ -50,7 +50,7 @@ jobs:
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@v0.9.2
         with:
-          pixi-version: v0.25.0
+          pixi-version: v0.65.0
           environments: ${{ matrix.pixi_environment }}
       - name: Run Tests
         run: pixi run -e ${{ matrix.pixi_environment }} test-ci
@@ -106,7 +106,7 @@ jobs:
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@v0.9.2
         with:
-          pixi-version: v0.25.0
+          pixi-version: v0.65.0
           environments: doc
       - name: Clean previous docs
         run: pixi run -e doc doc-clean
