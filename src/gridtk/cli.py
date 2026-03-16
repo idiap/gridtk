@@ -387,6 +387,13 @@ def resubmit(
         jobs = job_manager.resubmit_jobs(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
+        if not jobs:
+            click.echo(
+                "No jobs were resubmitted. Note that the default state "
+                "filtering may have excluded some jobs. If you want to "
+                "resubmit all jobs, please use the option: "
+                "gridtk resubmit --state all"
+            )
         for job in jobs:
             click.echo(f"Resubmitted job {job.id}")
         session.commit()

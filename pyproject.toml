@@ -74,9 +74,12 @@ doc-clean = "rm -rf doc/api && rm -rf html"
 doc = "sphinx-build -aEW doc html"
 doctest = "sphinx-build -aEb doctest doc html/doctest"
 
-[tool.pixi.feature.test.tasks]
-test = "pytest -sv tests/"
-test-ci = "pytest -sv --cov-branch tests/"
+[tool.pixi.feature.test.tasks.test]
+args = [{ "arg" = "extra_args", "default" = "" }]
+cmd = "pytest -sv tests/ {{ extra_args }}"
+
+[tool.pixi.feature.test.tasks.test-ci]
+cmd = "pytest -sv --cov-branch tests/"
 
 [tool.pixi.environments]
 default = { features = ["py312"], solve-group = "latest-python" }

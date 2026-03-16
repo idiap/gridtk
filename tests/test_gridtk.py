@@ -454,6 +454,24 @@ def test_resubmit_jobs(mock_check_output, runner):
 
 
 @patch("subprocess.check_output")
+def test_resubmit_no_jobs(mock_check_output, runner):
+    with runner.isolated_filesystem():
+        submit_job_id = 9876543
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
+        )
+
+        # Job is in pending state (not failed), so default resubmit filters exclude it
+        mock_check_output.side_effect = [
+            _pending_job_sacct_json(submit_job_id),  # sacct
+        ]
+        result = runner.invoke(cli, ["resubmit"])
+        assert_click_runner_result(result)
+        assert "No jobs were resubmitted" in result.output
+        assert "gridtk resubmit --state all" in result.output
+
+
+@patch("subprocess.check_output")
 def test_submit_with_dependencies(mock_check_output, runner):
     with runner.isolated_filesystem() as tmpdir:
         first_grid_id = 1111
