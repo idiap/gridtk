@@ -694,6 +694,7 @@ def wait(ctx, job_ids, states, names, dependents, interval):
                 any_failed = any(job.state in failed_states for job in jobs)
                 for job in jobs:
                     click.echo(f"Job {job.id}: {job.state} ({job.exit_code})")
+                session.commit()
                 if any_failed:
                     raise SystemExit(1)
                 return
