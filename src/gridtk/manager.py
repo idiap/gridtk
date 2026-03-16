@@ -37,7 +37,7 @@ from .tools import job_ids_from_dep_str, parse_array_indexes
 
 
 def parse_scontrol_output(output: str) -> dict[str, Any]:
-    """Parse scontrol output and return a dict similar to `sacct --json`."""
+    """Parse scontrol output and return a dict similar to ``sacct --json``."""
     result: dict[str, Any] = dict()
     for key_value in output.strip().split():
         if "=" not in key_value:
@@ -60,23 +60,81 @@ def job_status_from_scontrol(job_id: int) -> dict:
     try:
         # we don't use --json because it is not supported by older versions of scontrol
         output = subprocess.check_output(
-            ["scontrol", "show", "job", str(job_id)], text=True
+            ["scontrol", "show", "job", str(job_id)],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        return parse_scontrol_output(output)
+    except (subprocess.CalledProcessError, KeyError):
+        return dict()
+
+
+def job_statuses_from_squeue(grid_ids: list[int]) -> dict[int, dict]:
+    """Retrieve live job statuses using a single ``squeue`` call.
+
+    squeue accepts comma-separated job IDs, silently skips invalid/finished
+    jobs, and works with all Slurm versions (no --json needed).
+    """
+    try:
+        output = subprocess.check_output(
+            [
+                "squeue",
+                "-j",
+                ",".join(str(x) for x in grid_ids),
+                "--noheader",
+                "-o",
+                "%i|%T|%R|%N",
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL,
         )
     except subprocess.CalledProcessError:
         return dict()
-    return parse_scontrol_output(output)
+    status = dict()
+    for line in output.strip().splitlines():
+        parts = line.strip().split("|")
+        if len(parts) < 4:
+            continue
+        try:
+            job_id = int(parts[0])
+        except ValueError:
+            continue
+        state = parts[1]
+        reason = parts[2]
+        nodes = parts[3] or "None assigned"
+        # Build a dict compatible with Job.update() (same shape as sacct --json)
+        status[job_id] = {
+            "state": {"current": [state], "reason": reason},
+            "derived_exit_code": {"return_code": {"number": 0}},
+            "nodes": nodes,
+        }
+    return status
 
 
 def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
-    """Retrieve the status of the jobs in the database."""
+    """Retrieve the status of the jobs in the database.
+
+    Uses squeue first (live Slurm state) and falls back to sacct for jobs
+    that squeue cannot find (e.g. finished jobs purged from Slurm's memory).
+    This avoids stale sacct data after resubmissions (see issue #17).
+    """
+    grid_ids = list(grid_ids)
     status = dict()
+    # Try squeue first — it reflects the live Slurm state
+    status.update(job_statuses_from_squeue(grid_ids))
+    # Fall back to sacct for any jobs not found by squeue
+    remaining = [jid for jid in grid_ids if jid not in status]
+    if not remaining:
+        return status
     try:
         output = subprocess.check_output(
-            ["sacct", "-j", ",".join([str(x) for x in grid_ids]), "--json"],
+            ["sacct", "-j", ",".join([str(x) for x in remaining]), "--json"],
             text=True,
+            stderr=subprocess.DEVNULL,
         )
     except subprocess.CalledProcessError:
-        for job_id in grid_ids:
+        # sacct failed too; try scontrol one-by-one as last resort
+        for job_id in remaining:
             job_status = job_status_from_scontrol(job_id)
             if job_status:
                 status[job_id] = job_status
