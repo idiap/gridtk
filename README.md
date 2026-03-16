@@ -297,3 +297,30 @@ $ gridtk list --truncate # --truncate or -t
 --------  --------  -------  -------  ----------  ----------------  --------  -------------
        1    506994  hc..     COMPL..  gridtk      logs/gridtk.50..            gridtk subm..
 ```
+
+For machine-readable output (useful for scripting and AI agents), use `--json`:
+```bash
+$ gridtk list --json
+[
+  {
+    "job_id": 1,
+    "slurm_id": 506994,
+    "nodes": "hcne01",
+    "state": "COMPLETED",
+    "exit_code": "0",
+    "name": "gridtk",
+    "output": "logs/gridtk.506994.out",
+    "dependencies": [],
+    "command": "gridtk submit job.sh"
+  }
+]
+```
+
+The `--json` flag is also available on `submit` and `report`:
+```bash
+$ gridtk submit --json job.sh
+{"job_id": 1, "slurm_id": 506994, "name": "gridtk"}
+
+$ gridtk report --json -j 1
+[{"job_id": 1, "name": "gridtk", "state": "COMPLETED", ...}]
+```
