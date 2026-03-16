@@ -286,7 +286,7 @@ def test_list_jobs(mock_check_output, runner):
         # test when there are no jobs
         result = runner.invoke(cli, ["list"])
         assert_click_runner_result(result)
-        assert result.output == ""
+        assert result.output == "No jobs found.\n"
 
         # test when there are jobs
         submit_job_id = 9876543
