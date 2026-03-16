@@ -94,6 +94,21 @@ def states_callback(ctx, param, value):
     return parse_states(value)
 
 
+def no_jobs_message(
+    action: str,
+    *,
+    default_states: bool = False,
+) -> str:
+    """Build a helpful message when no jobs match the given filters."""
+    msg = f"No jobs were {action}."
+    if default_states:
+        msg += (
+            " Note: the default state filter is active."
+            " Use --state all to include all jobs."
+        )
+    return msg
+
+
 def job_filters(f_py=None, default_states=None):
     """Filter jobs based on the provided function and default states."""
     assert callable(f_py) or f_py is None
@@ -389,10 +404,10 @@ def resubmit(
         )
         if not jobs:
             click.echo(
-                "No jobs were resubmitted. Note that the default state "
-                "filtering may have excluded some jobs. If you want to "
-                "resubmit all jobs, please use the option: "
-                "gridtk resubmit --state all"
+                no_jobs_message(
+                    "resubmitted",
+                    default_states=True,
+                )
             )
         for job in jobs:
             click.echo(f"Resubmitted job {job.id}")
@@ -507,6 +522,8 @@ def list_jobs(
                     maxheadercolwidths=maxcolwidths,
                 )
             )
+        else:
+            click.echo(no_jobs_message("found"))
         session.commit()
 
 
@@ -528,6 +545,8 @@ def stop(
         jobs = job_manager.stop_jobs(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
+        if not jobs:
+            click.echo(no_jobs_message("stopped"))
         for job in jobs:
             click.echo(f"Stopped job {job.id} with slurm id {job.grid_id}")
         session.commit()
@@ -551,6 +570,8 @@ def delete(
         jobs = job_manager.delete_jobs(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
+        if not jobs:
+            click.echo(no_jobs_message("deleted"))
         for job in jobs:
             click.echo(f"Deleted job {job.id} with slurm id {job.grid_id}")
         session.commit()
@@ -581,6 +602,8 @@ def report(
         jobs = job_manager.list_jobs(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
+        if not jobs:
+            click.echo(no_jobs_message("found"))
         for job in jobs:
             report_text = ""
             report_text += f"Job ID: {job.id}\n"
