@@ -523,9 +523,7 @@ def list_jobs(
                 )
             )
         else:
-            click.echo(
-                no_jobs_message("found")
-            )
+            click.echo(no_jobs_message("found"))
         session.commit()
 
 
@@ -548,9 +546,7 @@ def stop(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
         if not jobs:
-            click.echo(
-                no_jobs_message("stopped")
-            )
+            click.echo(no_jobs_message("stopped"))
         for job in jobs:
             click.echo(f"Stopped job {job.id} with slurm id {job.grid_id}")
         session.commit()
@@ -575,9 +571,7 @@ def delete(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
         if not jobs:
-            click.echo(
-                no_jobs_message("deleted")
-            )
+            click.echo(no_jobs_message("deleted"))
         for job in jobs:
             click.echo(f"Deleted job {job.id} with slurm id {job.grid_id}")
         session.commit()
@@ -609,9 +603,7 @@ def report(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
         if not jobs:
-            click.echo(
-                no_jobs_message("found")
-            )
+            click.echo(no_jobs_message("found"))
         for job in jobs:
             report_text = ""
             report_text += f"Job ID: {job.id}\n"
