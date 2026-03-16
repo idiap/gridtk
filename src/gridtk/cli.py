@@ -97,27 +97,15 @@ def states_callback(ctx, param, value):
 def no_jobs_message(
     action: str,
     *,
-    job_ids: list[int],
-    states: list[str],
-    names: list[str],
     default_states: bool = False,
 ) -> str:
     """Build a helpful message when no jobs match the given filters."""
     msg = f"No jobs were {action}."
-    if states and default_states:
+    if default_states:
         msg += (
             " Note: the default state filter is active."
             " Use --state all to include all jobs."
         )
-    elif job_ids or states or names:
-        filters = []
-        if job_ids:
-            filters.append(f"--jobs {','.join(str(j) for j in job_ids)}")
-        if states:
-            filters.append(f"--state {','.join(states)}")
-        if names:
-            filters.append(f"--name {' --name '.join(names)}")
-        msg += f" Active filters: {' '.join(filters)}"
     return msg
 
 
@@ -418,9 +406,6 @@ def resubmit(
             click.echo(
                 no_jobs_message(
                     "resubmitted",
-                    job_ids=job_ids,
-                    states=states,
-                    names=names,
                     default_states=True,
                 )
             )
@@ -539,7 +524,7 @@ def list_jobs(
             )
         else:
             click.echo(
-                no_jobs_message("found", job_ids=job_ids, states=states, names=names)
+                no_jobs_message("found")
             )
         session.commit()
 
@@ -564,7 +549,7 @@ def stop(
         )
         if not jobs:
             click.echo(
-                no_jobs_message("stopped", job_ids=job_ids, states=states, names=names)
+                no_jobs_message("stopped")
             )
         for job in jobs:
             click.echo(f"Stopped job {job.id} with slurm id {job.grid_id}")
@@ -591,7 +576,7 @@ def delete(
         )
         if not jobs:
             click.echo(
-                no_jobs_message("deleted", job_ids=job_ids, states=states, names=names)
+                no_jobs_message("deleted")
             )
         for job in jobs:
             click.echo(f"Deleted job {job.id} with slurm id {job.grid_id}")
@@ -625,7 +610,7 @@ def report(
         )
         if not jobs:
             click.echo(
-                no_jobs_message("found", job_ids=job_ids, states=states, names=names)
+                no_jobs_message("found")
             )
         for job in jobs:
             report_text = ""
