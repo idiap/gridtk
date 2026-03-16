@@ -5,6 +5,7 @@
 
 import json
 import stat
+import subprocess
 import traceback
 
 from pathlib import Path
@@ -56,14 +57,28 @@ def _jobs_sacct_dict(job_ids, state, reason, nodes):
     return {"jobs": job_list}
 
 
+def _make_side_effect(calls):
+    """Create a side_effect that returns empty output for squeue calls
+    (simulating no active jobs) and returns values from `calls` for other
+    commands (sacct, scancel, sbatch)."""
+    it = iter(calls)
+
+    def side_effect(*args, **kwargs):
+        if args[0][0] == "squeue":
+            return ""
+        return next(it)
+
+    return side_effect
+
+
 def _pending_job_sacct_json(job_id):
     return json.dumps(
         _jobs_sacct_dict([job_id], "PENDING", "Unassigned", "None assigned")
     )
 
 
-def _failed_job_sacct_json(job_id):
-    return json.dumps(_jobs_sacct_dict([job_id], "FAILED", "None", "node001"))
+def _failed_job_sacct_json(*job_ids):
+    return json.dumps(_jobs_sacct_dict(list(job_ids), "FAILED", "None", "node001"))
 
 
 def test_parse_array_indexes():
@@ -284,7 +299,9 @@ def test_list_jobs(mock_check_output, runner):
         assert_click_runner_result(result)
         assert str(submit_job_id) in result.output
         mock_check_output.assert_called_with(
-            ["sacct", "-j", str(submit_job_id), "--json"], text=True
+            ["sacct", "-j", str(submit_job_id), "--json"],
+            text=True,
+            stderr=subprocess.DEVNULL,
         )
         # full command
         assert "gridtk submit --wrap sleep\n" in result.output
@@ -296,7 +313,9 @@ def test_list_jobs(mock_check_output, runner):
         assert_click_runner_result(result)
         assert str(submit_job_id) in result.output
         mock_check_output.assert_called_with(
-            ["sacct", "-j", str(submit_job_id), "--json"], text=True
+            ["sacct", "-j", str(submit_job_id), "--json"],
+            text=True,
+            stderr=subprocess.DEVNULL,
         )
         # truncated command
         assert "gridtk s..\n" in result.output
@@ -308,7 +327,9 @@ def test_list_jobs(mock_check_output, runner):
         assert_click_runner_result(result)
         assert str(submit_job_id) in result.output
         mock_check_output.assert_called_with(
-            ["sacct", "-j", str(submit_job_id), "--json"], text=True
+            ["sacct", "-j", str(submit_job_id), "--json"],
+            text=True,
+            stderr=subprocess.DEVNULL,
         )
         # wraped command
         assert "gridtk" in result.output
@@ -354,7 +375,9 @@ def test_report_job(mock_check_output, runner):
         )
         assert "Output file: /tmp/" in result.output
         mock_check_output.assert_called_with(
-            ["sacct", "-j", str(submit_job_id), "--json"], text=True
+            ["sacct", "-j", str(submit_job_id), "--json"],
+            text=True,
+            stderr=subprocess.DEVNULL,
         )
 
 
@@ -408,10 +431,12 @@ def test_delete_jobs(mock_check_output, runner):
                 0
             ],
         ]
-        mock_check_output.side_effect = [
-            json.dumps({"jobs": jobs}),
-            "",  # for scancel
-        ]
+        mock_check_output.side_effect = _make_side_effect(
+            [
+                json.dumps({"jobs": jobs}),
+                "",  # for scancel
+            ]
+        )
         result = runner.invoke(cli, ["delete", "-s", "CD"])
         assert_click_runner_result(result)
         assert result.output == f"Deleted job 1 with slurm id {submit_job_id_1}\n"
@@ -429,11 +454,13 @@ def test_resubmit_jobs(mock_check_output, runner):
             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
         )
 
-        mock_check_output.side_effect = [
-            _failed_job_sacct_json(submit_job_id),  # sacct
-            "",  # scancel
-            _sbatch_output(submit_job_id),  # sbatch
-        ]
+        mock_check_output.side_effect = _make_side_effect(
+            [
+                _failed_job_sacct_json(submit_job_id),  # sacct
+                "",  # scancel
+                _sbatch_output(submit_job_id),  # sbatch
+            ]
+        )
         result = runner.invoke(cli, ["resubmit"])
         assert_click_runner_result(result)
         assert result.output == "Resubmitted job 1\n"
@@ -462,13 +489,49 @@ def test_resubmit_no_jobs(mock_check_output, runner):
         )
 
         # Job is in pending state (not failed), so default resubmit filters exclude it
-        mock_check_output.side_effect = [
-            _pending_job_sacct_json(submit_job_id),  # sacct
-        ]
+        mock_check_output.side_effect = _make_side_effect(
+            [
+                _pending_job_sacct_json(submit_job_id),  # sacct
+            ]
+        )
         result = runner.invoke(cli, ["resubmit"])
         assert_click_runner_result(result)
         assert "No jobs were resubmitted" in result.output
         assert "gridtk resubmit --state all" in result.output
+
+
+@patch("subprocess.check_output")
+def test_list_after_resubmit_sacct_delay(mock_check_output, runner):
+    """Test that gridtk list uses squeue (live state) over stale sacct data
+    after a resubmit (issue #17)."""
+    with runner.isolated_filesystem(), runner.isolation(env={"COLUMNS": "80"}):
+        submit_job_id = 9876543
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
+        )
+
+        # Resubmit: squeue returns empty (no active jobs), sacct shows FAILED,
+        # scancel, sbatch gives new job id
+        new_job_id = 1111111
+        mock_check_output.side_effect = _make_side_effect(
+            [
+                _failed_job_sacct_json(submit_job_id),  # sacct for list_jobs
+                "",  # scancel
+                _sbatch_output(new_job_id),  # sbatch
+            ]
+        )
+        result = runner.invoke(cli, ["resubmit"])
+        assert_click_runner_result(result)
+        assert "Resubmitted job 1" in result.output
+
+        # Now list: squeue returns PENDING (live state), sacct not needed
+        squeue_output = f"{new_job_id}|PENDING|Priority|"
+        mock_check_output.return_value = squeue_output
+        mock_check_output.side_effect = None
+        result = runner.invoke(cli, ["list"])
+        assert_click_runner_result(result)
+        assert "PENDING" in result.output
+        assert str(new_job_id) in result.output
 
 
 @patch("subprocess.check_output")
@@ -500,13 +563,15 @@ def test_submit_with_dependencies(mock_check_output, runner):
         )
 
         # test if dependent jobs get resubmitted too
-        mock_check_output.side_effect = [
-            _failed_job_sacct_json(first_grid_id),  # sacct
-            "",  # scancel
-            _sbatch_output(first_grid_id + 10),  # sbatch
-            "",  # scancel
-            _sbatch_output(second_grid_id + 10),  # sbatch
-        ]
+        mock_check_output.side_effect = _make_side_effect(
+            [
+                _failed_job_sacct_json(first_grid_id, second_grid_id),  # sacct
+                "",  # scancel
+                _sbatch_output(first_grid_id + 10),  # sbatch
+                "",  # scancel
+                _sbatch_output(second_grid_id + 10),  # sbatch
+            ]
+        )
         result = runner.invoke(cli, ["resubmit", "--jobs", "1", "--dependents"])
         assert_click_runner_result(result)
         assert result.output == "Resubmitted job 1\nResubmitted job 2\n"
@@ -527,11 +592,15 @@ def test_submit_with_dependencies(mock_check_output, runner):
         )
 
         # test if dependent jobs get deleted too
-        mock_check_output.side_effect = [
-            _failed_job_sacct_json(first_grid_id + 10),  # sacct
-            "",  # scancel
-            "",  # scancel
-        ]
+        mock_check_output.side_effect = _make_side_effect(
+            [
+                _failed_job_sacct_json(
+                    first_grid_id + 10, second_grid_id + 10
+                ),  # sacct
+                "",  # scancel
+                "",  # scancel
+            ]
+        )
         result = runner.invoke(cli, ["delete", "--jobs", "1", "--dependents"])
         assert_click_runner_result(result)
         assert (
@@ -595,14 +664,22 @@ def test_submit_with_dependencies(mock_check_output, runner):
         )
 
         # now delete all the jobs
-        mock_check_output.side_effect = [
-            _failed_job_sacct_json(first_grid_id),  # sacct
-            "",  # scancel 1
-            "",  # scancel 2
-            "",  # scancel 3
-            "",  # scancel 4
-            "",  # scancel 5
-        ]
+        mock_check_output.side_effect = _make_side_effect(
+            [
+                _failed_job_sacct_json(
+                    first_grid_id,
+                    second_grid_id,
+                    first_grid_id + 10,
+                    second_grid_id + 10,
+                    third_grid_id + 10,
+                ),  # sacct
+                "",  # scancel 1
+                "",  # scancel 2
+                "",  # scancel 3
+                "",  # scancel 4
+                "",  # scancel 5
+            ]
+        )
         result = runner.invoke(cli, ["delete", "--dependents"])
         assert_click_runner_result(result)
         assert (
