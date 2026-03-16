@@ -639,6 +639,76 @@ def delete(
 @cli.command()
 @job_filters
 @click.option(
+    "--interval",
+    default=10,
+    type=click.INT,
+    help="Polling interval in seconds.",
+)
+@click.pass_context
+def wait(ctx, job_ids, states, names, dependents, interval):
+    """Wait for jobs to finish. Exits with code 1 if any job failed."""
+    import time
+
+    from .manager import JobManager
+
+    job_manager: JobManager = ctx.meta["job_manager"]
+    # Terminal states - jobs in these states won't change
+    terminal_states = {
+        "BOOT_FAIL",
+        "CANCELLED",
+        "COMPLETED",
+        "DEADLINE",
+        "FAILED",
+        "NODE_FAIL",
+        "OUT_OF_MEMORY",
+        "PREEMPTED",
+        "REVOKED",
+        "SPECIAL_EXIT",
+        "TIMEOUT",
+    }
+    # Failed states - if any job ends in these, exit code 1
+    failed_states = {
+        "BOOT_FAIL",
+        "CANCELLED",
+        "DEADLINE",
+        "FAILED",
+        "NODE_FAIL",
+        "OUT_OF_MEMORY",
+        "PREEMPTED",
+        "REVOKED",
+        "SPECIAL_EXIT",
+        "TIMEOUT",
+    }
+
+    while True:
+        with job_manager as session:
+            jobs = job_manager.list_jobs(
+                job_ids=job_ids, states=states, names=names, dependents=dependents
+            )
+            if not jobs:
+                click.echo("No jobs found.")
+                return
+
+            all_terminal = all(job.state in terminal_states for job in jobs)
+            if all_terminal:
+                any_failed = any(job.state in failed_states for job in jobs)
+                for job in jobs:
+                    click.echo(f"Job {job.id}: {job.state} ({job.exit_code})")
+                if any_failed:
+                    ctx.exit(1)
+                return
+
+            # Show progress
+            pending = sum(1 for j in jobs if j.state not in terminal_states)
+            click.echo(f"Waiting for {pending} job(s)... (checking every {interval}s)")
+            session.commit()
+
+        time.sleep(interval)
+
+
+@cli.command()
+@job_filters
+@click.option(
     "-a",
     "--array",
     "array_idx",
