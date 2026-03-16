@@ -260,6 +260,27 @@ Here are some useful commands:
   sacctmgr -n -p list assoc where user=$USER | awk '-F|' '{print "   "$2}'
   ```
 
+### Waiting for Jobs
+
+Use `gridtk wait` to block until all jobs finish:
+```bash
+$ gridtk wait
+Waiting for 3 job(s)... (checking every 10s)
+Job 1: COMPLETED (0)
+Job 2: COMPLETED (0)
+Job 3: FAILED (1)
+```
+
+`gridtk wait` exits with code 1 if any job failed, making it easy to chain:
+```bash
+$ gridtk submit job.sh && gridtk wait && echo "All done!"
+```
+
+You can filter which jobs to wait for and change the polling interval:
+```bash
+$ gridtk wait -j 1,2 --interval 30
+```
+
 ### Tab Completion
 
 GridTK supports tab completion for the `gridtk` command. To enable it, add the following
