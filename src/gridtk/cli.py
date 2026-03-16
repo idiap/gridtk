@@ -507,6 +507,8 @@ def list_jobs(
                     maxheadercolwidths=maxcolwidths,
                 )
             )
+        else:
+            click.echo("No jobs found.")
         session.commit()
 
 
@@ -528,6 +530,8 @@ def stop(
         jobs = job_manager.stop_jobs(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
+        if not jobs:
+            click.echo("No jobs were stopped.")
         for job in jobs:
             click.echo(f"Stopped job {job.id} with slurm id {job.grid_id}")
         session.commit()
@@ -551,6 +555,8 @@ def delete(
         jobs = job_manager.delete_jobs(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
+        if not jobs:
+            click.echo("No jobs were deleted.")
         for job in jobs:
             click.echo(f"Deleted job {job.id} with slurm id {job.grid_id}")
         session.commit()
@@ -581,6 +587,8 @@ def report(
         jobs = job_manager.list_jobs(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
+        if not jobs:
+            click.echo("No jobs found.")
         for job in jobs:
             report_text = ""
             report_text += f"Job ID: {job.id}\n"
