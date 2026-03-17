@@ -310,7 +310,7 @@ dependencies: {dependencies}"""
                 and len(self.list_jobs(update_jobs=False)) == 0
             ):
                 Path(self.database).unlink()
-                if self.logs_dir.exists() and len(os.listdir(self.logs_dir)) == 0:
+                if self.logs_dir.exists() and not any(self.logs_dir.iterdir()):
                     shutil.rmtree(self.logs_dir)
 
     def __del__(self):
