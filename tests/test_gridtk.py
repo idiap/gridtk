@@ -734,13 +734,16 @@ def test_submit_json(mock_check_output, runner):
 
 @patch("subprocess.check_output")
 def test_wait_command(mock_check_output, runner):
+    import gc
+
     # Test wait with COMPLETED job (exit code 0)
     with runner.isolated_filesystem():
         submit_job_id = 9876543
         _submit_job(
             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
         )
-        # Use return_value so all calls (squeue, sacct, __del__) get valid data
+        # Force GC to run __del__ on submit's JobManager before changing mock
+        gc.collect()
         mock_check_output.return_value = json.dumps(
             _jobs_sacct_dict([submit_job_id], "COMPLETED", "None", "node001")
         )
@@ -755,6 +758,7 @@ def test_wait_command(mock_check_output, runner):
         _submit_job(
             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
         )
+        gc.collect()
         mock_check_output.return_value = _failed_job_sacct_json(submit_job_id)
         result = runner.invoke(cli, ["wait"])
         assert_click_runner_result(result, exit_code=1)
