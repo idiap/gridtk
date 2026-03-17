@@ -186,9 +186,10 @@ def cli(ctx, database, logs_dir):
 
 @cli.result_callback()
 def process_result(result, **kwargs):
-    """Delete the job manager from the context."""
+    """Clean up empty databases and dispose the job manager."""
     ctx = click.get_current_context()
-    del ctx.meta["job_manager"]
+    job_manager = ctx.meta.pop("job_manager")
+    job_manager.cleanup_empty_database()
 
 
 @cli.command(
@@ -634,6 +635,84 @@ def delete(
         for job in jobs:
             click.echo(f"Deleted job {job.id} with slurm id {job.grid_id}")
         session.commit()
+
+
+@cli.command()
+@job_filters
+@click.option(
+    "--interval",
+    default=10,
+    type=click.INT,
+    help="Polling interval in seconds.",
+)
+@click.pass_context
+def wait(ctx, job_ids, states, names, dependents, interval):
+    """Wait for jobs to finish. Exits with code 1 if any job failed."""
+    import time
+
+    from .manager import JobManager
+
+    job_manager: JobManager = ctx.meta["job_manager"]
+    # Terminal states - jobs in these states won't change
+    terminal_states = {
+        "BOOT_FAIL",
+        "CANCELLED",
+        "COMPLETED",
+        "DEADLINE",
+        "FAILED",
+        "NODE_FAIL",
+        "OUT_OF_MEMORY",
+        "PREEMPTED",
+        "REVOKED",
+        "SPECIAL_EXIT",
+        "TIMEOUT",
+    }
+    # Failed states - if any job ends in these, exit code 1
+    failed_states = {
+        "BOOT_FAIL",
+        "CANCELLED",
+        "DEADLINE",
+        "FAILED",
+        "NODE_FAIL",
+        "OUT_OF_MEMORY",
+        "PREEMPTED",
+        "REVOKED",
+        "SPECIAL_EXIT",
+        "TIMEOUT",
+    }
+
+    while True:
+        with job_manager as session:
+            jobs = job_manager.list_jobs(
+                job_ids=job_ids, states=states, names=names, dependents=dependents
+            )
+            if not jobs:
+                click.echo("No jobs found.")
+                return
+
+            all_terminal = all(job.state in terminal_states for job in jobs)
+            if all_terminal:
+                any_failed = any(job.state in failed_states for job in jobs)
+                for job in jobs:
+                    click.echo(f"Job {job.id}: {job.state} ({job.exit_code})")
+                session.commit()
+                if any_failed:
+                    raise SystemExit(1)
+                return
+
+            # Show progress with state breakdown
+            from collections import Counter
+
+            active = [j for j in jobs if j.state not in terminal_states]
+            counts = Counter(j.state for j in active)
+            breakdown = ", ".join(f"{n} {s.lower()}" for s, n in sorted(counts.items()))
+            click.echo(
+                f"Waiting for {len(active)} job(s): {breakdown}"
+                f" (checking every {interval}s)"
+            )
+            session.commit()
+
+        time.sleep(interval)
 
 
 @cli.command()

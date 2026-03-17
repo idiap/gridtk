@@ -302,8 +302,8 @@ dependencies: {dependencies}"""
             self.session.add(job)
         return jobs
 
-    def __del__(self):
-        # if there are no jobs in the database, delete the database file and the logs directory (if empty)
+    def cleanup_empty_database(self):
+        """Delete the database file and logs directory if no jobs remain."""
         with self:
             if (
                 Path(self.database).exists()
@@ -312,4 +312,6 @@ dependencies: {dependencies}"""
                 Path(self.database).unlink()
                 if self.logs_dir.exists() and len(os.listdir(self.logs_dir)) == 0:
                     shutil.rmtree(self.logs_dir)
+
+    def __del__(self):
         self.engine.dispose()

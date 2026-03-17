@@ -701,7 +701,6 @@ def test_list_json(mock_check_output, runner):
         _submit_job(
             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
         )
-
         mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
         result = runner.invoke(cli, ["list", "--json"])
         assert_click_runner_result(result)
@@ -730,6 +729,34 @@ def test_submit_json(mock_check_output, runner):
         assert data["job_id"] == 1
         assert data["slurm_id"] == 123456789
         assert data["name"] == "gridtk"
+
+
+@patch("subprocess.check_output")
+def test_wait_command(mock_check_output, runner):
+    # Test wait with COMPLETED job (exit code 0)
+    with runner.isolated_filesystem():
+        submit_job_id = 9876543
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
+        )
+        mock_check_output.return_value = json.dumps(
+            _jobs_sacct_dict([submit_job_id], "COMPLETED", "None", "node001")
+        )
+        result = runner.invoke(cli, ["wait"])
+        assert_click_runner_result(result)
+        assert "Job 1: COMPLETED" in result.output
+
+    # Test wait with FAILED job (exit code 1)
+    with runner.isolated_filesystem():
+        submit_job_id = 9876543
+        mock_check_output.side_effect = None
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
+        )
+        mock_check_output.return_value = _failed_job_sacct_json(submit_job_id)
+        result = runner.invoke(cli, ["wait"])
+        assert_click_runner_result(result, exit_code=1)
+        assert "Job 1: FAILED" in result.output
 
 
 if __name__ == "__main__":
