@@ -704,9 +704,7 @@ def wait(ctx, job_ids, states, names, dependents, interval):
 
             active = [j for j in jobs if j.state not in terminal_states]
             counts = Counter(j.state for j in active)
-            breakdown = ", ".join(
-                f"{n} {s.lower()}" for s, n in sorted(counts.items())
-            )
+            breakdown = ", ".join(f"{n} {s.lower()}" for s, n in sorted(counts.items()))
             click.echo(
                 f"Waiting for {len(active)} job(s): {breakdown}"
                 f" (checking every {interval}s)"

@@ -740,12 +740,9 @@ def test_wait_command(mock_check_output, runner):
         _submit_job(
             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
         )
-        mock_check_output.side_effect = _make_side_effect(
-            [
-                json.dumps(
-                    _jobs_sacct_dict([submit_job_id], "COMPLETED", "None", "node001")
-                ),
-            ]
+        # Use return_value so all calls (squeue, sacct, __del__) get valid data
+        mock_check_output.return_value = json.dumps(
+            _jobs_sacct_dict([submit_job_id], "COMPLETED", "None", "node001")
         )
         result = runner.invoke(cli, ["wait"])
         assert_click_runner_result(result)
@@ -758,11 +755,7 @@ def test_wait_command(mock_check_output, runner):
         _submit_job(
             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
         )
-        mock_check_output.side_effect = _make_side_effect(
-            [
-                _failed_job_sacct_json(submit_job_id),
-            ]
-        )
+        mock_check_output.return_value = _failed_job_sacct_json(submit_job_id)
         result = runner.invoke(cli, ["wait"])
         assert_click_runner_result(result, exit_code=1)
         assert "Job 1: FAILED" in result.output
