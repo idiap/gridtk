@@ -742,14 +742,12 @@ def test_wait_command(mock_check_output, runner):
         _submit_job(
             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
         )
-        # Force GC to run __del__ on submit's JobManager before changing mock
+        # Force GC and ensure DB survives __del__ cleanup
         gc.collect()
+        assert Path("jobs.sql3").exists(), "DB was deleted by __del__"
         mock_check_output.return_value = json.dumps(
             _jobs_sacct_dict([submit_job_id], "COMPLETED", "None", "node001")
         )
-        # Debug: verify job exists in DB before wait
-        result = runner.invoke(cli, ["list"])
-        assert "gridtk" in result.output, f"list before wait: {result.output!r}"
         result = runner.invoke(cli, ["wait"])
         assert_click_runner_result(result)
         assert "Job 1: COMPLETED" in result.output
@@ -762,6 +760,7 @@ def test_wait_command(mock_check_output, runner):
             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
         )
         gc.collect()
+        assert Path("jobs.sql3").exists(), "DB was deleted by __del__"
         mock_check_output.return_value = _failed_job_sacct_json(submit_job_id)
         result = runner.invoke(cli, ["wait"])
         assert_click_runner_result(result, exit_code=1)
