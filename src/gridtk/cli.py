@@ -186,9 +186,10 @@ def cli(ctx, database, logs_dir):
 
 @cli.result_callback()
 def process_result(result, **kwargs):
-    """Delete the job manager from the context."""
+    """Clean up empty databases and dispose the job manager."""
     ctx = click.get_current_context()
-    del ctx.meta["job_manager"]
+    job_manager = ctx.meta.pop("job_manager")
+    job_manager.cleanup_empty_database()
 
 
 @cli.command(

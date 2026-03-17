@@ -8,8 +8,6 @@ import stat
 import subprocess
 import traceback
 
-import gridtk.manager
-
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -698,26 +696,11 @@ Deleted job 5 with slurm id {third_grid_id + 10}
 
 @patch("subprocess.check_output")
 def test_list_json(mock_check_output, runner):
-    import gc
-    import os
-
-    original_del = gridtk.manager.JobManager.__del__
-
-    def debug_del(self):
-        print(f"DEBUG __del__: DB={self.database}, exists={Path(self.database).exists()}")
-        original_del(self)
-        print(f"DEBUG __del__ after: exists={Path(self.database).exists()}")
-
     with runner.isolated_filesystem():
         submit_job_id = 9876543
         _submit_job(
             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
         )
-        print(f"DEBUG after submit: DB exists={os.path.exists('jobs.sql3')}")
-        gridtk.manager.JobManager.__del__ = debug_del
-        gc.collect()
-        print(f"DEBUG after gc: DB exists={os.path.exists('jobs.sql3')}")
-        gridtk.manager.JobManager.__del__ = original_del
         mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
         result = runner.invoke(cli, ["list", "--json"])
         assert_click_runner_result(result)
@@ -748,7 +731,6 @@ def test_submit_json(mock_check_output, runner):
         assert data["name"] == "gridtk"
 
 
-@patch("gridtk.manager.JobManager.__del__", lambda self: None)
 @patch("subprocess.check_output")
 def test_wait_command(mock_check_output, runner):
     # Test wait with COMPLETED job (exit code 0)
