@@ -694,6 +694,44 @@ Deleted job 5 with slurm id {third_grid_id + 10}
         )
 
 
+@patch("subprocess.check_output")
+def test_list_json(mock_check_output, runner):
+    with runner.isolated_filesystem():
+        submit_job_id = 9876543
+        _submit_job(
+            runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
+        )
+
+        mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
+        result = runner.invoke(cli, ["list", "--json"])
+        assert_click_runner_result(result)
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert len(data) == 1
+        job = data[0]
+        assert job["job_id"] == 1
+        assert job["slurm_id"] == submit_job_id
+        assert job["name"] == "gridtk"
+        assert job["state"] == "PENDING"
+        assert str(job["exit_code"]) == "0"
+        assert job["nodes"] == "Unassigned"
+        assert "dependencies" in job
+        assert "command" in job
+        assert "output" in job
+
+
+@patch("subprocess.check_output")
+def test_submit_json(mock_check_output, runner):
+    mock_check_output.return_value = _sbatch_output(123456789)
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["submit", "--json", "--wrap=hostname"])
+        assert_click_runner_result(result)
+        data = json.loads(result.output)
+        assert data["job_id"] == 1
+        assert data["slurm_id"] == 123456789
+        assert data["name"] == "gridtk"
+
+
 if __name__ == "__main__":
     import sys
 

@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import json
 import pydoc
 import shutil
 import tempfile
@@ -330,6 +331,13 @@ gridtk submit --- python my_code.py
 @click.option("--wait-all-nodes", hidden=True)
 @click.option("--wckey", hidden=True)
 @click.option("--wrap", hidden=True)
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output in JSON format",
+)
 @click.argument("script", nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def submit(
@@ -338,6 +346,7 @@ def submit(
     array: str,
     dependencies: str,
     repeat: int,
+    output_json: bool,
     script: str,
     **kwargs,
 ):
@@ -377,7 +386,18 @@ def submit(
                 array=array,
                 dependencies=dependencies,
             )
-            click.echo(job.id)
+            if output_json:
+                click.echo(
+                    json.dumps(
+                        {
+                            "job_id": job.id,
+                            "slurm_id": job.grid_id,
+                            "name": job.name,
+                        }
+                    )
+                )
+            else:
+                click.echo(job.id)
             deps = (dependencies or "").split(",")
             deps[-1] = f"{deps[-1]}:{job.id}" if deps[-1] else str(job.id)
             dependencies = ",".join(deps)
@@ -430,6 +450,13 @@ def resubmit(
     default=False,
     help="Truncate the output to the terminal width",
 )
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output in JSON format",
+)
 @click.pass_context
 def list_jobs(
     ctx: click.Context,
@@ -439,11 +466,15 @@ def list_jobs(
     dependents: bool,
     wrap: bool,
     truncate: bool,
+    output_json: bool,
 ):
     """List jobs in the queue, similar to sacct and squeue."""
-    from tabulate import tabulate
-
     from .manager import JobManager
+
+    if output_json and (wrap or truncate):
+        raise click.UsageError(
+            "--json is mutually exclusive with --wrap and --truncate"
+        )
 
     def truncate_str(content: str, max_width: int) -> str:
         if len(content) > max_width:
@@ -455,6 +486,34 @@ def list_jobs(
         jobs = job_manager.list_jobs(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
+
+        if output_json:
+            jobs_list = []
+            for job in jobs:
+                output = job.output_files[0].resolve()
+                try:
+                    output = output.relative_to(Path.cwd().resolve())
+                except ValueError:
+                    pass
+                jobs_list.append(
+                    {
+                        "job_id": job.id,
+                        "slurm_id": job.grid_id,
+                        "nodes": job.nodes,
+                        "state": job.state,
+                        "exit_code": job.exit_code,
+                        "name": job.name,
+                        "output": str(output),
+                        "dependencies": [dep_job for dep_job in job.dependencies_ids],
+                        "command": "gridtk submit " + " ".join(job.command),
+                    }
+                )
+            click.echo(json.dumps(jobs_list, indent=2))
+            session.commit()
+            return
+
+        from tabulate import tabulate
+
         table: dict[str, list[str]] = defaultdict(list)
         for job in jobs:
             table["job-id"].append(job.id)
@@ -585,6 +644,13 @@ def delete(
     "array_idx",
     help="Array index to see the logs for only one item of an array job.",
 )
+@click.option(
+    "--json",
+    "output_json",
+    is_flag=True,
+    default=False,
+    help="Output in JSON format",
+)
 @click.pass_context
 def report(
     ctx: click.Context,
@@ -593,6 +659,7 @@ def report(
     names: list[str],
     dependents: bool,
     array_idx: Optional[str],
+    output_json: bool,
 ):
     """Report on jobs in the queue."""
     from .manager import JobManager
@@ -603,7 +670,64 @@ def report(
             job_ids=job_ids, states=states, names=names, dependents=dependents
         )
         if not jobs:
-            click.echo(no_jobs_message("found"))
+            if output_json:
+                click.echo(json.dumps([]))
+            else:
+                click.echo(no_jobs_message("found"))
+            session.commit()
+            return
+
+        if output_json:
+            report_list = []
+            for job in jobs:
+                with tempfile.NamedTemporaryFile(mode="w+t", suffix=".sh") as tmpfile:
+                    command = job.submitted_command(tmpfile, session=session)
+                output_files_list = []
+                files = job.output_files
+                error_files = job.error_files
+                if array_idx is not None:
+                    real_array_idx = job.array_task_ids.index(int(array_idx))
+                    files = files[real_array_idx : real_array_idx + 1]
+                    error_files = error_files[real_array_idx : real_array_idx + 1]
+                for out_file, err_file in zip(files, error_files):
+                    if out_file.exists():
+                        output_files_list.append(
+                            {
+                                "path": str(out_file),
+                                "content": out_file.open().read(),
+                            }
+                        )
+                    else:
+                        output_files_list.append(
+                            {"path": str(out_file), "content": None}
+                        )
+                    if err_file != out_file:
+                        if err_file.exists():
+                            output_files_list.append(
+                                {
+                                    "path": str(err_file),
+                                    "content": err_file.open().read(),
+                                }
+                            )
+                        else:
+                            output_files_list.append(
+                                {"path": str(err_file), "content": None}
+                            )
+                report_list.append(
+                    {
+                        "job_id": job.id,
+                        "name": job.name,
+                        "state": job.state,
+                        "exit_code": job.exit_code,
+                        "nodes": job.nodes,
+                        "command": command,
+                        "output_files": output_files_list,
+                    }
+                )
+            click.echo(json.dumps(report_list, indent=2))
+            session.commit()
+            return
+
         for job in jobs:
             report_text = ""
             report_text += f"Job ID: {job.id}\n"
