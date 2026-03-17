@@ -9,6 +9,19 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [3.2.0](https://github.com/idiap/gridtk/compare/v3.1.0...v3.2.0) (2026-03-17)
+
+
+### Features
+
+* add --json output flag to submit, list, and report commands ([#29](https://github.com/idiap/gridtk/issues/29)) ([3d3d6bd](https://github.com/idiap/gridtk/commit/3d3d6bd3c058429dd5f18c7f6ea174c865166de6))
+* add wait command with non-zero exit on failure ([#28](https://github.com/idiap/gridtk/issues/28)) ([a97666f](https://github.com/idiap/gridtk/commit/a97666f9a5f15be4a56ad23156302558fb739228))
+
+
+### Bug Fixes
+
+* show feedback when commands match no jobs ([#27](https://github.com/idiap/gridtk/issues/27)) ([ffd9e13](https://github.com/idiap/gridtk/commit/ffd9e13313ed1de5aa29944baefa7c8a38e3971f))
+
 ## [3.1.0](https://github.com/idiap/gridtk/compare/v3.0.1...v3.1.0) (2026-03-16)
 
 
