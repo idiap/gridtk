@@ -696,12 +696,14 @@ Deleted job 5 with slurm id {third_grid_id + 10}
 
 @patch("subprocess.check_output")
 def test_list_json(mock_check_output, runner):
+    import gc
+
     with runner.isolated_filesystem():
         submit_job_id = 9876543
         _submit_job(
             runner=runner, mock_check_output=mock_check_output, job_id=submit_job_id
         )
-
+        gc.collect()
         mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
         result = runner.invoke(cli, ["list", "--json"])
         assert_click_runner_result(result)
