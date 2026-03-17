@@ -9,6 +9,22 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [3.2.0](https://github.com/idiap/gridtk/compare/v3.1.0...v3.2.0) (2026-03-17)
+
+
+### Features
+
+* add --json output flag to submit, list, and report commands ([6a8c54c](https://github.com/idiap/gridtk/commit/6a8c54c1a4505ad023f0e3388539647dcfc3e8c3))
+* add wait command with non-zero exit on failure ([3715276](https://github.com/idiap/gridtk/commit/3715276576ee0a881f89abb8e19f1e02039fbd50))
+
+
+### Bug Fixes
+
+* commit session before SystemExit in wait command ([2e5cd62](https://github.com/idiap/gridtk/commit/2e5cd6270f8df3e47772d5f10bad00b02261d7e4))
+* ensure wait output is printed before exit ([46762e7](https://github.com/idiap/gridtk/commit/46762e7ce2be98a917811c22f1c298f1d7817a2a))
+* show feedback when commands match no jobs ([#27](https://github.com/idiap/gridtk/issues/27)) ([ffd9e13](https://github.com/idiap/gridtk/commit/ffd9e13313ed1de5aa29944baefa7c8a38e3971f))
+* show state breakdown in wait progress (pending vs running) ([fd30aad](https://github.com/idiap/gridtk/commit/fd30aad1ea9e3559307eab140be73f7e02c5a3e7))
+
 ## [3.1.0](https://github.com/idiap/gridtk/compare/v3.0.1...v3.1.0) (2026-03-16)
 
 
