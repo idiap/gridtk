@@ -747,6 +747,9 @@ def test_wait_command(mock_check_output, runner):
         mock_check_output.return_value = json.dumps(
             _jobs_sacct_dict([submit_job_id], "COMPLETED", "None", "node001")
         )
+        # Debug: verify job exists in DB before wait
+        result = runner.invoke(cli, ["list"])
+        assert "gridtk" in result.output, f"list before wait: {result.output!r}"
         result = runner.invoke(cli, ["wait"])
         assert_click_runner_result(result)
         assert "Job 1: COMPLETED" in result.output
