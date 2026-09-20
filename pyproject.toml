@@ -49,7 +49,8 @@ doc = [
   "myst-parser",
 ]
 test = ["pytest", "pytest-cov", "coverage"]
-dev = ["gridtk[doc,test]", "pre-commit", "ruff"]
+qa = ["gridtk[test]", "prek", "ruff", "ty", "reuse"]
+dev = ["gridtk[doc,test,qa]"]
 
 [project.scripts]
 gridtk = "gridtk.cli:cli"
@@ -82,11 +83,17 @@ cmd = "pytest -sv tests/ {{ extra_args }}"
 [tool.pixi.feature.test.tasks.test-ci]
 cmd = "pytest -sv --cov-branch tests/"
 
+[tool.pixi.feature.qa.tasks]
+qa-install = "prek install"
+qa = "prek run --all-files"
+qa-ci = "prek run --all-files --show-diff-on-failure --verbose"
+
 [tool.pixi.environments]
 default = { features = ["py312"], solve-group = "latest-python" }
 test = { features = ["test", "py312"], solve-group = "latest-python" }
 doc = { features = ["doc", "py312"], solve-group = "latest-python" }
-dev = { features = ["dev", "doc", "test", "py312"], solve-group = "latest-python" }
+qa = { features = ["qa", "py312"], solve-group = "latest-python" }
+dev = { features = ["dev", "doc", "test", "qa", "py312"], solve-group = "latest-python" }
 
 test-py313 = { features = ["test", "py313"], solve-group = "python313" }
 test-py314 = { features = ["test", "py314"], solve-group = "python314" }
@@ -147,6 +154,7 @@ select = [
   #"ICN", # https://docs.astral.sh/ruff/rules/#flake8-import-conventions-icn
 ]
 ignore = [
+  "A003",   # https://docs.astral.sh/ruff/rules/builtin-attribute-shadowing/ (models use `id`)
   "COM812", # https://docs.astral.sh/ruff/rules/missing-trailing-comma/
   "D100",   # https://docs.astral.sh/ruff/rules/undocumented-public-module/
   "D102",   # https://docs.astral.sh/ruff/rules/undocumented-public-method/
@@ -181,6 +189,3 @@ addopts = ["--cov=gridtk", "--cov-report=term-missing", "--import-mode=append"]
 
 [tool.coverage.run]
 relative_files = true
-
-[tool.mypy]
-python_version = "3.11"

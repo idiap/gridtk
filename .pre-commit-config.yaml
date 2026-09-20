@@ -4,53 +4,46 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# See https://pre-commit.com for more information
-# See https://pre-commit.com/hooks.html for more hooks
+# Hooks are run with prek (https://prek.j178.dev): `pixi run qa` checks every file,
+# `pixi run qa-install` installs the git hooks.
 
 default_install_hook_types: ["pre-commit", "commit-msg"]
 repos:
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v3.2.0
+    rev: v4.4.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
         args: []
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.4.4
+    rev: v0.16.8
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.10.0
+  - repo: local
     hooks:
-      - id: mypy
-        args:
-          [
-            --install-types,
-            --non-interactive,
-            --no-strict-optional,
-            --ignore-missing-imports,
-          ]
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+      - id: ty-check
+        name: ty-check
+        entry: pixi run -e qa ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+      - id: pixi-lock
+        name: check outdated pixi.lock
+        entry: pixi lock --check
+        language: system
+        files: ^(pyproject\.toml|pixi\.lock)$
+        pass_filenames: false
+  - repo: https://codeberg.org/fsfe/reuse-tool
+    rev: v6.2.0
     hooks:
-      - id: check-ast
+      - id: reuse
+  - repo: builtin
+    hooks:
       - id: check-added-large-files
       - id: check-toml
       - id: check-yaml
-      - id: debug-statements
       - id: check-case-conflict
       - id: trailing-whitespace
       - id: end-of-file-fixer
-  - repo: https://github.com/fsfe/reuse-tool
-    rev: v3.0.2
-    hooks:
-      - id: reuse
-  - repo: local
-    hooks:
-      - id: pixi
-        name: check outdated pixi.lock
-        language: system
-        entry: pixi list --locked
-        pass_filenames: false
