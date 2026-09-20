@@ -14,6 +14,8 @@ from typing import Optional
 
 import click
 
+from . import guard
+
 
 class CustomGroup(click.Group):
     """Custom command group that does not sort commands."""
@@ -227,6 +229,16 @@ gridtk submit --- python my_code.py
     type=click.INT,
     help="Submits the job N times. Each job will depend on the job before.",
 )
+@click.option(
+    "--git-guard/--no-git-guard",
+    default=False,
+    help=(
+        "Pin the job to the git repository containing the current directory: its "
+        "HEAD, tracked changes and untracked files are recorded at submission and "
+        "the job aborts with exit code 75 if any of them changed when it starts "
+        "(useful for code installed in editable mode). Requires the --- form."
+    ),
+)
 # sbatch options
 @click.option("-A", "--account", hidden=True)
 @click.option("--acctg-freq", hidden=True)
@@ -347,6 +359,7 @@ def submit(
     array: str,
     dependencies: str,
     repeat: int,
+    git_guard: bool,
     output_json: bool,
     script: str,
     **kwargs,
@@ -355,6 +368,17 @@ def submit(
     from .manager import JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
+    git_repo = None
+    if git_guard:
+        if "---" not in script:
+            raise click.UsageError(
+                "--git-guard requires the command form of submission "
+                "(gridtk submit [options] --- command)"
+            )
+        try:
+            git_repo = guard.repository_root(Path.cwd())
+        except RuntimeError as e:
+            raise click.UsageError(f"--git-guard: {e}") from e
     # reconstruct the command with kwargs and script
     command = []
     for k, v in kwargs.items():
@@ -386,6 +410,7 @@ def submit(
                 command=command,
                 array=array,
                 dependencies=dependencies,
+                git_guard=git_repo,
             )
             if output_json:
                 click.echo(
@@ -800,6 +825,7 @@ def report(
                         "exit_code": job.exit_code,
                         "nodes": job.nodes,
                         "command": command,
+                        "git_guard": job.git_guard,
                         "output_files": output_files_list,
                     }
                 )
@@ -813,6 +839,8 @@ def report(
             report_text += f"Name: {job.name}\n"
             report_text += f"State: {job.state} ({job.exit_code})\n"
             report_text += f"Nodes: {job.nodes}\n"
+            if job.git_guard:
+                report_text += f"Git guard: {guard.describe(job.git_guard)}\n"
             with tempfile.NamedTemporaryFile(mode="w+t", suffix=".sh") as tmpfile:
                 report_text += f"Submitted command: {job.submitted_command(tmpfile, session=session)}\n"
                 if job.command_in_bash:

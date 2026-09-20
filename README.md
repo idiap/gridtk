@@ -252,6 +252,40 @@ will depend on the previous one. This is useful if your script can resume from
 a checkpoint and you want to run it effectively for a longer time than allowed
 by policy.
 
+### Pinning a Job to the State of a Git Repository
+
+Code installed in *editable* mode (`pip install -e .`, `pixi`/`uv` project environments)
+is imported from the working copy when the job **starts**, possibly hours after
+submission. Edits, commits or branch switches made in between silently change what a
+queued job computes. The `--git-guard` option records a fingerprint of the git
+repository containing the current directory at submission time (the `HEAD` commit, a
+hash of the tracked changes and a hash of the status including untracked files) and
+makes the generated script re-check it when the job starts:
+
+```bash
+$ gridtk submit --git-guard --job-name=train --- python train.py
+1
+$ gridtk report -j 1
+Job ID: 1
+Name: train
+State: PENDING (0)
+Nodes: Unassigned
+Git guard: /home/user/project @ 6bf37d093285 (clean)
+...
+```
+
+If anything changed, the job exits with code `75` before running the command and
+explains what differs in its log; `gridtk list` shows it as `FAILED (75)`. Fix or
+restore the working copy and use `gridtk resubmit`, which pins the job to the
+repository as it is at resubmission time. Set `GRIDTK_GIT_GUARD=0` in the job
+environment (e.g. `--export=ALL,GRIDTK_GIT_GUARD=0`) to skip the check for a
+throwaway run, or `GRIDTK_SUBMIT_GIT_GUARD=1` in your shell to enable the guard by
+default.
+
+The guard requires the `---` form of submission (gridtk must generate the script) and
+`git` on the compute nodes. Add `jobs.sql3` and the logs directory to `.gitignore` when
+they live inside the repository, otherwise every submission makes the tree dirty.
+
 ### Monitoring Jobs
 
 While `gridtk list` and `gridtk report` are useful for checking the status of jobs,

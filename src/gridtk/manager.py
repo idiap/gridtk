@@ -32,6 +32,7 @@ import sqlalchemy
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from . import guard
 from .models import Base, Job, JobDependency
 from .tools import job_ids_from_dep_str, parse_array_indexes
 
@@ -176,6 +177,7 @@ class JobManager:
         # opens a new session and returns it
         if not self.read_only:
             Base.metadata.create_all(self.engine)
+            self._add_missing_columns()
         self._session = Session(self.engine)
         self._session.begin()
         return self._session
@@ -191,11 +193,58 @@ class JobManager:
     def session(self) -> Session:
         return self._session
 
-    def submit_job(self, name, command, array, dependencies):
+    def _add_missing_columns(self) -> None:
+        """Add columns introduced after a database was created.
+
+        ``create_all`` only creates missing *tables*; databases written by older
+        gridtk versions lack the columns added since.  New columns are nullable,
+        so ``ALTER TABLE ... ADD COLUMN`` is enough to bring them up to date.
+        """
+        with self.engine.begin() as connection:
+            for table in Base.metadata.sorted_tables:
+                existing = {
+                    row[1]
+                    for row in connection.exec_driver_sql(
+                        f"PRAGMA table_info({table.name})"
+                    )
+                }
+                for column in table.columns:
+                    if column.name in existing:
+                        continue
+                    column_type = column.type.compile(dialect=self.engine.dialect)
+                    connection.exec_driver_sql(
+                        f"ALTER TABLE {table.name} ADD COLUMN {column.name} {column_type}"
+                    )
+
+    def submit_job(self, name, command, array, dependencies, git_guard=None):
+        """Submit a job and record it in the database.
+
+        Parameters
+        ----------
+        name
+            Job name.
+        command
+            sbatch options and the script or, after ``---``, the command.
+        array
+            Job array specification, if any.
+        dependencies
+            Dependency specification with local job ids, if any.
+        git_guard
+            Path inside the git repository the job must be pinned to, or ``None``.
+            Requires the ``---`` form of ``command``.
+        """
         array_task_ids = None
         if array:
             command = ("--array", array) + tuple(command)
             array_task_ids = parse_array_indexes(array)
+        git_guard_state = None
+        if git_guard is not None:
+            if "---" not in command:
+                raise RuntimeError(
+                    "--git-guard requires the command form of submission "
+                    "(gridtk submit [options] --- command)"
+                )
+            git_guard_state = guard.repository_state(guard.repository_root(git_guard))
         job = Job(
             name=name,
             command=command,
@@ -203,6 +252,7 @@ class JobManager:
             is_array_job=bool(array),
             array_task_ids=array_task_ids,
             dependencies_str=dependencies,
+            git_guard=git_guard_state,
         )
         try:
             job.submit(session=self.session)
