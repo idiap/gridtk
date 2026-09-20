@@ -10,7 +10,6 @@ import tempfile
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
 
 import click
 
@@ -762,7 +761,7 @@ def report(
     states: list[str],
     names: list[str],
     dependents: bool,
-    array_idx: Optional[str],
+    array_idx: str | None,
     output_json: bool,
 ):
     """Report on jobs in the queue."""
