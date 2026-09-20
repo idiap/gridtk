@@ -27,6 +27,7 @@ from sqlalchemy.orm import (
 )
 from sqlalchemy.types import TypeDecorator
 
+from . import guard
 from .tools import job_ids_from_dep_str, replace_job_ids_in_dep_str
 
 
@@ -149,6 +150,8 @@ class Job(Base):
     exit_code: Mapped[Optional[str]]
     nodes: Mapped[Optional[str]]  # list of node names
     array_task_ids: Mapped[Optional[list[int]]] = mapped_column(ObjectValue)
+    git_guard: Mapped[Optional[dict]] = mapped_column(ObjectValue)
+    """Repository state captured at submission (see :mod:`gridtk.guard`)."""
     dependencies_jobdependency: Mapped[list[JobDependency]] = relationship(
         JobDependency,
         primaryjoin=id == JobDependency.job_id,  # type: ignore[attr-defined]
@@ -180,6 +183,7 @@ class Job(Base):
             f"is_array_job={self.is_array_job}, "
             f"array_task_ids={self.array_task_ids}, "
             f"dependencies={self.dependencies_str}, "
+            f"git_guard={self.git_guard}, "
             f")"
         )
 
@@ -197,6 +201,8 @@ class Job(Base):
         if "---" not in self.command:
             return ""
         content = "#!/bin/bash\n"
+        if self.git_guard:
+            content += guard.guard_script(self.git_guard)
         split_idx = self.command.index("---")
         content += shlex.join(self.command[split_idx + 1 :]) + "\n"
         return content
@@ -239,6 +245,9 @@ class Job(Base):
         ] + command
 
     def submit(self, session: Session = None):
+        if self.git_guard:
+            # (re)submission pins the job to the repository as it is right now
+            self.git_guard = guard.repository_state(Path(self.git_guard["repo"]))
         with tempfile.NamedTemporaryFile(mode="w+t", suffix=".sh", delete=False) as fh:
             try:
                 command = self.submitted_command(fh=fh, session=session)
