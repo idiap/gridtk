@@ -852,7 +852,7 @@ packages:
   name: gridtk
   requires_dist:
   - click
-  - sqlalchemy
+  - sqlalchemy~=2.0
   - tabulate
   - coverage ; extra == 'dev'
   - furo ; extra == 'dev'
