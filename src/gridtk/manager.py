@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 import sqlalchemy
+import sqlalchemy.exc
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -289,6 +290,8 @@ dependencies: {dependencies}"""
         jobs_by_grid_id: dict[int, Job] = dict()
         query = self.session.query(Job)
         for job in query.all():
+            if job.grid_id is None:
+                continue
             jobs_by_grid_id[job.grid_id] = job
         if not jobs_by_grid_id:
             return
