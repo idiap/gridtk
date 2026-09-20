@@ -10,6 +10,7 @@ import tempfile
 
 from collections import defaultdict
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -21,7 +22,7 @@ class CustomGroup(click.Group):
 
     def list_commands(self, ctx: click.Context) -> list[str]:
         # do not sort the commands
-        return self.commands
+        return list(self.commands)
 
     def get_command(self, ctx, cmd_name):
         """get_command with prefix aliasing and name aliases."""
@@ -41,7 +42,7 @@ class CustomGroup(click.Group):
         if len(matches) == 1:
             return click.Group.get_command(self, ctx, matches[0])
 
-        ctx.fail(f"Too many matches: {', '.join(sorted(matches))}")  # noqa: RET503
+        raise click.UsageError(f"Too many matches: {', '.join(sorted(matches))}", ctx)
 
 
 def parse_job_ids(job_ids: str) -> list[int]:
@@ -80,7 +81,7 @@ def parse_states(states: str) -> list[str]:
         state = JOB_STATES_MAPPING.get(state, state)
         if state not in JOB_STATES_MAPPING.values():
             raise click.BadParameter(
-                f"Invalid state: {state}\nValid values are: ALL {' '.join(list(JOB_STATES_MAPPING.keys())+list(JOB_STATES_MAPPING.values()))} or a comma (,) separated list of them."
+                f"Invalid state: {state}\nValid values are: ALL {' '.join(list(JOB_STATES_MAPPING.keys()) + list(JOB_STATES_MAPPING.values()))} or a comma (,) separated list of them."
             )
         final_states.append(state)
     return final_states
@@ -423,7 +424,7 @@ def submit(
                 )
             else:
                 click.echo(job.id)
-            deps = (dependencies or "").split(",")
+            deps: list[str] = str(dependencies or "").split(",")
             deps[-1] = f"{deps[-1]}:{job.id}" if deps[-1] else str(job.id)
             dependencies = ",".join(deps)
         session.commit()
@@ -539,7 +540,7 @@ def list_jobs(
 
         from tabulate import tabulate
 
-        table: dict[str, list[str]] = defaultdict(list)
+        table: dict[str, list[Any]] = defaultdict(list)
         for job in jobs:
             table["job-id"].append(job.id)
             table["slurm-id"].append(job.grid_id)
@@ -729,7 +730,9 @@ def wait(ctx, job_ids, states, names, dependents, interval):
 
             active = [j for j in jobs if j.state not in terminal_states]
             counts = Counter(j.state for j in active)
-            breakdown = ", ".join(f"{n} {s.lower()}" for s, n in sorted(counts.items()))
+            breakdown = ", ".join(
+                f"{n} {(s or 'UNKNOWN').lower()}" for s, n in sorted(counts.items())
+            )
             click.echo(
                 f"Waiting for {len(active)} job(s): {breakdown}"
                 f" (checking every {interval}s)"
@@ -789,7 +792,7 @@ def report(
                 files = job.output_files
                 error_files = job.error_files
                 if array_idx is not None:
-                    real_array_idx = job.array_task_ids.index(int(array_idx))
+                    real_array_idx = (job.array_task_ids or []).index(int(array_idx))
                     files = files[real_array_idx : real_array_idx + 1]
                     error_files = error_files[real_array_idx : real_array_idx + 1]
                 for out_file, err_file in zip(files, error_files):
@@ -848,7 +851,7 @@ def report(
                     )
             output_files, error_files = job.output_files, job.error_files
             if array_idx is not None:
-                real_array_idx = job.array_task_ids.index(int(array_idx))
+                real_array_idx = (job.array_task_ids or []).index(int(array_idx))
                 output_files = output_files[real_array_idx : real_array_idx + 1]
                 error_files = error_files[real_array_idx : real_array_idx + 1]
             for output, error in zip(output_files, error_files):

@@ -15,7 +15,7 @@ from sqlite3 import Connection as SQLite3Connection
 
 from sqlalchemy import Column, ForeignKey, Integer, String, Table, event
 from sqlalchemy.engine import Engine
-from sqlalchemy.ext.associationproxy import association_proxy
+from sqlalchemy.ext.associationproxy import AssociationProxy, association_proxy
 from sqlalchemy.orm import (
     DeclarativeBase,
     Mapped,
@@ -126,6 +126,13 @@ class JobDependency:
     job that must finish first).
     """
 
+    job_id: Mapped[int]
+    waited_for_job_id: Mapped[int]
+
+    def __init__(self, job_id: int, waited_for_job_id: int) -> None:
+        self.job_id = job_id
+        self.waited_for_job_id = waited_for_job_id
+
     def __repr__(self):
         return f"<JobDependency {self.job_id} -> {self.waited_for_job_id}>"
 
@@ -153,11 +160,11 @@ class Job(Base):
     """Repository state captured at submission (see :mod:`gridtk.guard`)."""
     dependencies_jobdependency: Mapped[list[JobDependency]] = relationship(
         JobDependency,
-        primaryjoin=id == JobDependency.job_id,  # type: ignore[attr-defined]
+        primaryjoin=id == JobDependency.job_id,
         viewonly=True,
-        order_by=JobDependency.waited_for_job_id,  # type: ignore[attr-defined]
+        order_by=JobDependency.waited_for_job_id,
     )
-    dependencies_ids: Mapped[list[int]] = association_proxy(
+    dependencies_ids: AssociationProxy[list[int]] = association_proxy(
         "dependencies_jobdependency", "waited_for_job_id"
     )
     dependents: Mapped[list["Job"]] = relationship(
@@ -243,7 +250,7 @@ class Job(Base):
             str(error),
         ] + command
 
-    def submit(self, session: Session = None):
+    def submit(self, session: Session | None = None):
         if self.git_guard:
             # (re)submission pins the job to the repository as it is right now
             self.git_guard = guard.repository_state(Path(self.git_guard["repo"]))
@@ -260,7 +267,12 @@ class Job(Base):
                 Path(fh.name).unlink(missing_ok=True)
         # find job ID from output
         # output is like b'Submitted batch job 123456789\n'
-        self.grid_id = int(re.search("[0-9]+", output).group())
+        match = re.search("[0-9]+", output)
+        if match is None:
+            raise RuntimeError(
+                f"Could not find the job id in sbatch output: {output!r}"
+            )
+        self.grid_id = int(match.group())
         return self.grid_id
 
     def cancel(self, delete_logs: bool = False):
@@ -280,9 +292,9 @@ class Job(Base):
         if self.nodes == "None assigned":
             # TODO: sometimes only the state_reason from squeue contains the reason
             self.nodes = job_status_dict["state"]["reason"]
-        assert (
-            self.state in JOB_STATES_MAPPING.values()
-        ), f"Unknown job state {self.state}, read from {job_status_dict}"
+        assert self.state in JOB_STATES_MAPPING.values(), (
+            f"Unknown job state {self.state}, read from {job_status_dict}"
+        )
         return
 
     @property
@@ -291,7 +303,7 @@ class Job(Base):
         if not self.is_array_job:
             return [Path(output.replace("%j", str(self.grid_id)))]
         files = []
-        for array_task_id in self.array_task_ids:
+        for array_task_id in self.array_task_ids or []:
             files.append(
                 output.replace("%A", str(self.grid_id)).replace(
                     "%a", str(array_task_id)

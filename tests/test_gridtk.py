@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from click.testing import CliRunner
+
 from gridtk.__main__ import cli
 from gridtk.tools import (
     job_ids_from_dep_str,
@@ -154,7 +155,7 @@ def test_extract_job_ids_from_dep_str():
 
 def assert_click_runner_result(result, exit_code=0, exception_type=None):
     """Helper for asserting click runner results."""
-    m = "Click command exited with code `{}' and exception:\n{}" "\nThe output was:\n{}"
+    m = "Click command exited with code `{}' and exception:\n{}\nThe output was:\n{}"
     exception = (
         "None"
         if result.exc_info is None
