@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file. See [commit
 
 * add `--git-guard` to `gridtk submit`: records the HEAD commit and hashes of the tracked changes and status (untracked files included) of the git repository containing the current directory, and makes the generated script abort with exit code 75 when they differ at job start; `gridtk report` shows the recorded state (also with `--json`), `gridtk resubmit` pins the job to the repository as it is at resubmission time, and `GRIDTK_GIT_GUARD=0` in the job environment skips the check
 * job databases written by older versions are upgraded in place: columns missing from the `jobs` table are added with `ALTER TABLE` when the database is opened
+* Unpin tabulate and click so installations can match more options
 
 ## [3.2.0](https://github.com/idiap/gridtk/compare/v3.1.0...v3.2.0) (2026-03-17)
 
