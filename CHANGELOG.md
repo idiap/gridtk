@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file. See [commit
 ## [Unreleased](https://github.com/idiap/gridtk/compare/v3.2.1...HEAD)
 
 
+### ⚠ BREAKING CHANGES
+
+* drop support for Python 3.9 and 3.10: the minimum supported version is now 3.11, matching the `python_min` of conda-forge (CFEP-25); continuous integration tests Python 3.12, 3.13 and 3.14
+
 ### Features
 
 * add `--git-guard` to `gridtk submit`: records the HEAD commit and hashes of the tracked changes and status (untracked files included) of the git repository containing the current directory, and makes the generated script abort with exit code 75 when they differ at job start; `gridtk report` shows the recorded state (also with `--json`), `gridtk resubmit` pins the job to the repository as it is at resubmission time, and `GRIDTK_GIT_GUARD=0` in the job environment skips the check

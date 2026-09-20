@@ -25,7 +25,7 @@ import subprocess
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import sqlalchemy
 
@@ -158,7 +158,7 @@ class JobManager:
     """Implements a job manager for Slurm."""
 
     def __init__(
-        self, database: Path, logs_dir: Path, read_only: Optional[bool] = None
+        self, database: Path, logs_dir: Path, read_only: bool | None = None
     ) -> None:
         self.database = Path(database)
         # check if database exists and is read-only

@@ -12,7 +12,6 @@ import warnings
 
 from pathlib import Path
 from sqlite3 import Connection as SQLite3Connection
-from typing import Optional
 
 from sqlalchemy import Column, ForeignKey, Integer, String, Table, event
 from sqlalchemy.engine import Engine
@@ -83,7 +82,7 @@ class ObjectValue(TypeDecorator):
 
     def process_bind_param(self, value, dialect):
         if value is not None:
-            if isinstance(value, (dict, list, tuple)):
+            if isinstance(value, dict | list | tuple):
                 value = json.dumps(value)
             elif isinstance(value, Path):
                 value = str(value.absolute())
@@ -144,13 +143,13 @@ class Job(Base):
     command: Mapped[list] = mapped_column(ObjectValue)
     logs_dir: Mapped[Path] = mapped_column(ObjectValue)
     is_array_job: Mapped[bool]
-    dependencies_str: Mapped[Optional[str]] = mapped_column(String(2048))
-    grid_id: Mapped[Optional[int]]
-    state: Mapped[Optional[str]] = mapped_column(String(30), default="UNKNOWN")
-    exit_code: Mapped[Optional[str]]
-    nodes: Mapped[Optional[str]]  # list of node names
-    array_task_ids: Mapped[Optional[list[int]]] = mapped_column(ObjectValue)
-    git_guard: Mapped[Optional[dict]] = mapped_column(ObjectValue)
+    dependencies_str: Mapped[str | None] = mapped_column(String(2048))
+    grid_id: Mapped[int | None]
+    state: Mapped[str | None] = mapped_column(String(30), default="UNKNOWN")
+    exit_code: Mapped[str | None]
+    nodes: Mapped[str | None]  # list of node names
+    array_task_ids: Mapped[list[int] | None] = mapped_column(ObjectValue)
+    git_guard: Mapped[dict | None] = mapped_column(ObjectValue)
     """Repository state captured at submission (see :mod:`gridtk.guard`)."""
     dependencies_jobdependency: Mapped[list[JobDependency]] = relationship(
         JobDependency,

@@ -5,8 +5,6 @@
 
 import re
 
-from typing import Optional
-
 
 def parse_array_indexes(indexes_str: str) -> list[int]:
     """Pares a string of array indexes to a list of integers."""
@@ -39,7 +37,7 @@ def parse_array_indexes(indexes_str: str) -> list[int]:
     return result
 
 
-def job_ids_from_dep_str(dependency_string: Optional[str]) -> list[int]:
+def job_ids_from_dep_str(dependency_string: str | None) -> list[int]:
     """Extract job IDs from a dependency string."""
     if not dependency_string:
         return []
