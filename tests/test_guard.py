@@ -229,7 +229,7 @@ def test_resubmit_pins_the_current_repository_state(
 
 
 @patch("subprocess.check_output")
-def test_database_without_git_guard_column_is_upgraded(
+def test_database_without_git_guard_column_is_rejected(
     mock_check_output, runner, tmp_path
 ):
     mock_check_output.return_value = "Submitted batch job 1000\n"
@@ -245,11 +245,10 @@ def test_database_without_git_guard_column_is_upgraded(
         connection.commit()
         connection.close()
 
-        mock_check_output.side_effect = _slurm_replies(_sacct_json(1000))
-        result = runner.invoke(cli, ["list", "-s", "ALL"])
-        assert result.exit_code == 0, result.output
-        assert "hostname" in result.output
-        mock_check_output.side_effect = _slurm_replies(_sacct_json(1000))
-        result = runner.invoke(cli, ["report", "--json"])
-        assert result.exit_code == 0, result.output
-        assert json.loads(result.output)[0]["git_guard"] is None
+        for args in (["list", "-s", "ALL"], ["submit", "---", "hostname"]):
+            result = runner.invoke(cli, args)
+            assert result.exit_code != 0
+            assert "Error:" in result.output
+            assert "older version of gridtk" in result.output
+            assert "jobs.git_guard" in result.output
+            assert "Traceback" not in result.output

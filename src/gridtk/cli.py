@@ -183,7 +183,12 @@ def cli(ctx, database, logs_dir):
     """GridTK command line interface."""
     from .manager import JobManager
 
-    ctx.meta["job_manager"] = JobManager(database=database, logs_dir=logs_dir)
+    job_manager = JobManager(database=database, logs_dir=logs_dir)
+    try:
+        job_manager.check_schema()
+    except RuntimeError as e:
+        raise click.ClickException(str(e)) from e
+    ctx.meta["job_manager"] = job_manager
 
 
 @cli.result_callback()
