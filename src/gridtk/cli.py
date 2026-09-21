@@ -10,7 +10,6 @@ import tempfile
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
 
 import click
 
@@ -545,7 +544,7 @@ def list_jobs(
 
         from tabulate import tabulate
 
-        table: dict[str, list[Any]] = defaultdict(list)
+        table: dict[str, list[str | int | Path | None]] = defaultdict(list)
         for job in jobs:
             table["job-id"].append(job.id)
             table["slurm-id"].append(job.grid_id)
