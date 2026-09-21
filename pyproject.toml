@@ -71,6 +71,9 @@ python = "~=3.13.0"
 [tool.pixi.feature.py312.dependencies]
 python = "~=3.12.0"
 
+[tool.pixi.feature.py311.dependencies]
+python = "~=3.11.0"
+
 [tool.pixi.feature.doc.tasks]
 doc-clean = "rm -rf doc/api && rm -rf html"
 doc = "sphinx-build -aEW doc html"
@@ -96,6 +99,7 @@ qa = { features = ["qa", "py312"], solve-group = "latest-python" }
 dev = { features = ["dev", "doc", "test", "qa", "py312"], solve-group = "latest-python" }
 
 test-py313 = { features = ["test", "py313"], solve-group = "python313" }
+test-py311 = { features = ["test", "py311"], solve-group = "python311" }
 test-py314 = { features = ["test", "py314"], solve-group = "python314" }
 
 [tool.hatch.version]
