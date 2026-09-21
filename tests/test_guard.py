@@ -88,9 +88,9 @@ def _slurm_replies(*replies: str):
     return side_effect
 
 
-def _run_guard(state: dict) -> int:
+def _run_guard(state: guard.RepositoryState) -> int:
     """Run the bash guard for ``state`` followed by a no-op and return its exit code."""
-    script = "#!/bin/bash\n" + guard.guard_script(state) + "true\n"
+    script = "#!/bin/bash\n" + state.guard_script() + "true\n"
     return subprocess.run(["bash", "-c", script]).returncode
 
 
@@ -98,17 +98,17 @@ def test_repository_state_and_bash_guard_agree(tmp_path):
     repo = _make_repo(tmp_path / "repo")
 
     state = guard.repository_state(repo)
-    assert state["repo"] == str(repo)
-    assert state["head"] == _git(repo, "rev-parse", "HEAD")
-    assert not state["dirty"]
+    assert state.repo == repo
+    assert state.head == _git(repo, "rev-parse", "HEAD")
+    assert not state.dirty
     assert _run_guard(state) == 0
 
     # a tracked change trips the guard
     (repo / "code.py").write_text("print('v2')\n")
     assert _run_guard(state) == guard.GUARD_EXIT_CODE
     dirty = guard.repository_state(repo)
-    assert dirty["dirty"]
-    assert dirty["diff_sha256"] != state["diff_sha256"]
+    assert dirty.dirty
+    assert dirty.diff_sha256 != state.diff_sha256
     assert _run_guard(dirty) == 0
 
     # so does a new untracked file
@@ -121,14 +121,14 @@ def test_repository_state_and_bash_guard_agree(tmp_path):
     _git(repo, "commit", "-q", "-m", "v2")
     assert _run_guard(dirty) == guard.GUARD_EXIT_CODE
     committed = guard.repository_state(repo)
-    assert committed["head"] != state["head"]
-    assert not committed["dirty"]
+    assert committed.head != state.head
+    assert not committed.dirty
     assert _run_guard(committed) == 0
 
     # the guard can be switched off in the job environment
     assert (
         subprocess.run(
-            ["bash", "-c", "#!/bin/bash\n" + guard.guard_script(state) + "true\n"],
+            ["bash", "-c", "#!/bin/bash\n" + state.guard_script() + "true\n"],
             env={**os.environ, "GRIDTK_GIT_GUARD": "0"},
         ).returncode
         == 0

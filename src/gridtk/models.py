@@ -101,6 +101,28 @@ class ObjectValue(TypeDecorator):
         return value
 
 
+class RepositoryStateValue(TypeDecorator):
+    """Store a :class:`gridtk.guard.RepositoryState` as JSON in the database."""
+
+    impl = String
+
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if not isinstance(value, guard.RepositoryState):
+            raise TypeError(
+                f"RepositoryStateValue must be a RepositoryState but got {type(value)}"
+            )
+        return json.dumps(value.to_dict())
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        return guard.RepositoryState.from_dict(json.loads(value))
+
+
 mapper_registry = registry()
 
 
@@ -156,7 +178,9 @@ class Job(Base):
     exit_code: Mapped[str | None]
     nodes: Mapped[str | None]  # list of node names
     array_task_ids: Mapped[list[int] | None] = mapped_column(ObjectValue)
-    git_guard: Mapped[dict | None] = mapped_column(ObjectValue)
+    git_guard: Mapped[guard.RepositoryState | None] = mapped_column(
+        RepositoryStateValue
+    )
     """Repository state captured at submission (see :mod:`gridtk.guard`)."""
     dependencies_jobdependency: Mapped[list[JobDependency]] = relationship(
         JobDependency,
@@ -208,7 +232,7 @@ class Job(Base):
             return ""
         content = "#!/bin/bash\n"
         if self.git_guard:
-            content += guard.guard_script(self.git_guard)
+            content += self.git_guard.guard_script()
         split_idx = self.command.index("---")
         content += shlex.join(self.command[split_idx + 1 :]) + "\n"
         return content
@@ -253,7 +277,7 @@ class Job(Base):
     def submit(self, session: Session | None = None):
         if self.git_guard:
             # (re)submission pins the job to the repository as it is right now
-            self.git_guard = guard.repository_state(Path(self.git_guard["repo"]))
+            self.git_guard = guard.repository_state(self.git_guard.repo)
         with tempfile.NamedTemporaryFile(mode="w+t", suffix=".sh", delete=False) as fh:
             try:
                 command = self.submitted_command(fh=fh, session=session)

@@ -13,6 +13,7 @@ job computes.  The guard captures a fingerprint of the repository at submission 
 recompute it at start, aborting with :data:`GUARD_EXIT_CODE` when they differ.
 """
 
+import dataclasses
 import hashlib
 import shlex
 import subprocess
@@ -50,46 +51,65 @@ def repository_root(path: Path) -> Path:
     return Path(output.decode().strip())
 
 
-def repository_state(repo: Path) -> dict[str, Any]:
-    """Fingerprint the current state of a git repository.
+@dataclasses.dataclass(frozen=True)
+class RepositoryState:
+    """Fingerprint of a git repository at a given moment.
 
-    Parameters
-    ----------
-    repo
-        Root of the repository (see :func:`repository_root`).
-
-    Returns
-    -------
-    dict
-        A JSON-serializable dictionary with the repository path (``repo``), the
-        ``head`` commit sha, ``diff_sha256`` (sha256 of ``git diff HEAD``),
-        ``status_sha256`` (sha256 of ``git status --porcelain`` including untracked
-        files) and ``dirty`` (whether the working tree differs from ``HEAD``).
+    Instances are created with :func:`repository_state` and stored on the job as a
+    JSON object (see :meth:`to_dict` and :meth:`from_dict`).
     """
-    repo = Path(repo)
-    head = _git(repo, "rev-parse", "HEAD").decode().strip()
-    diff = _git(repo, "diff", "--no-color", "--no-ext-diff", "HEAD")
-    status = _git(repo, "status", "--porcelain=v1", "--untracked-files=all")
-    diff_sha256 = hashlib.sha256(diff).hexdigest()
-    status_sha256 = hashlib.sha256(status).hexdigest()
-    return {
-        "repo": str(repo),
-        "head": head,
-        "diff_sha256": diff_sha256,
-        "status_sha256": status_sha256,
-        "dirty": status_sha256 != _EMPTY_SHA256,
-    }
 
+    repo: Path
+    """Root of the repository."""
 
-def guard_script(state: dict[str, Any]) -> str:
-    """Return bash lines that verify ``state`` and exit :data:`GUARD_EXIT_CODE`.
+    head: str
+    """Commit sha of ``HEAD``."""
 
-    The lines are meant to be placed before the user command in the job script.
-    Setting ``GRIDTK_GIT_GUARD=0`` in the job environment skips the check.
-    """
-    repo = shlex.quote(state["repo"])
-    expected = f"{state['head']} {state['diff_sha256']} {state['status_sha256']}"
-    return f"""\
+    diff_sha256: str
+    """sha256 of ``git diff HEAD`` (changes to tracked files)."""
+
+    status_sha256: str
+    """sha256 of ``git status --porcelain`` including untracked files."""
+
+    @property
+    def dirty(self) -> bool:
+        """Whether the working tree differs from ``HEAD`` (untracked files included)."""
+        return self.status_sha256 != _EMPTY_SHA256
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable representation (``dirty`` included)."""
+        return {
+            "repo": str(self.repo),
+            "head": self.head,
+            "diff_sha256": self.diff_sha256,
+            "status_sha256": self.status_sha256,
+            "dirty": self.dirty,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "RepositoryState":
+        """Rebuild an instance from the output of :meth:`to_dict`."""
+        return cls(
+            repo=Path(data["repo"]),
+            head=data["head"],
+            diff_sha256=data["diff_sha256"],
+            status_sha256=data["status_sha256"],
+        )
+
+    def describe(self) -> str:
+        """Return a one-line human-readable description of the state."""
+        tree = "dirty" if self.dirty else "clean"
+        return f"{self.repo} @ {self.head[:12]} ({tree})"
+
+    def guard_script(self) -> str:
+        """Return bash lines that verify the state and exit :data:`GUARD_EXIT_CODE`.
+
+        The lines are meant to be placed before the user command in the job script.
+        Setting ``GRIDTK_GIT_GUARD=0`` in the job environment skips the check.
+        """
+        repo = shlex.quote(str(self.repo))
+        expected = f"{self.head} {self.diff_sha256} {self.status_sha256}"
+        return f"""\
 # gridtk git guard: abort if the repository changed since submission
 if [ "${{GRIDTK_GIT_GUARD:-1}}" = "1" ]; then
   _gridtk_repo={repo}
@@ -107,7 +127,21 @@ fi
 """
 
 
-def describe(state: dict[str, Any]) -> str:
-    """Return a one-line human-readable description of a captured state."""
-    tree = "dirty" if state["dirty"] else "clean"
-    return f"{state['repo']} @ {state['head'][:12]} ({tree})"
+def repository_state(repo: Path) -> RepositoryState:
+    """Fingerprint the current state of a git repository.
+
+    Parameters
+    ----------
+    repo
+        Root of the repository (see :func:`repository_root`).
+    """
+    repo = Path(repo)
+    head = _git(repo, "rev-parse", "HEAD").decode().strip()
+    diff = _git(repo, "diff", "--no-color", "--no-ext-diff", "HEAD")
+    status = _git(repo, "status", "--porcelain=v1", "--untracked-files=all")
+    return RepositoryState(
+        repo=repo,
+        head=head,
+        diff_sha256=hashlib.sha256(diff).hexdigest(),
+        status_sha256=hashlib.sha256(status).hexdigest(),
+    )

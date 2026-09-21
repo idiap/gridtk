@@ -832,7 +832,9 @@ def report(
                         "exit_code": job.exit_code,
                         "nodes": job.nodes,
                         "command": command,
-                        "git_guard": job.git_guard,
+                        "git_guard": (
+                            job.git_guard.to_dict() if job.git_guard else None
+                        ),
                         "output_files": output_files_list,
                     }
                 )
@@ -847,7 +849,7 @@ def report(
             report_text += f"State: {job.state} ({job.exit_code})\n"
             report_text += f"Nodes: {job.nodes}\n"
             if job.git_guard:
-                report_text += f"Git guard: {guard.describe(job.git_guard)}\n"
+                report_text += f"Git guard: {job.git_guard.describe()}\n"
             with tempfile.NamedTemporaryFile(mode="w+t", suffix=".sh") as tmpfile:
                 report_text += f"Submitted command: {job.submitted_command(tmpfile, session=session)}\n"
                 if job.command_in_bash:
