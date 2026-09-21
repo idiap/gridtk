@@ -178,7 +178,7 @@ class JobManager:
         # opens a new session and returns it
         if not self.read_only:
             Base.metadata.create_all(self.engine)
-            self._add_missing_columns()
+        self.check_schema()
         self._session = Session(self.engine)
         self._session.begin()
         return self._session
@@ -194,14 +194,18 @@ class JobManager:
     def session(self) -> Session:
         return self._session
 
-    def _add_missing_columns(self) -> None:
-        """Add columns introduced after a database was created.
+    def check_schema(self) -> None:
+        """Raise ``RuntimeError`` if the database lacks columns this version needs.
 
-        ``create_all`` only creates missing *tables*; databases written by older
-        gridtk versions lack the columns added since.  New columns are nullable,
-        so ``ALTER TABLE ... ADD COLUMN`` is enough to bring them up to date.
+        ``create_all`` only creates missing *tables*, so a database written by an
+        older gridtk version may lack columns added since (``jobs.git_guard``
+        was introduced in 3.3.0).  Job databases are short-lived, so rather than
+        migrating them in place we ask the user to start a fresh one.
         """
-        with self.engine.begin() as connection:
+        if not self.database.exists():
+            return
+        missing = []
+        with self.engine.connect() as connection:
             for table in Base.metadata.sorted_tables:
                 existing = {
                     row[1]
@@ -209,13 +213,20 @@ class JobManager:
                         f"PRAGMA table_info({table.name})"
                     )
                 }
-                for column in table.columns:
-                    if column.name in existing:
-                        continue
-                    column_type = column.type.compile(dialect=self.engine.dialect)
-                    connection.exec_driver_sql(
-                        f"ALTER TABLE {table.name} ADD COLUMN {column.name} {column_type}"
-                    )
+                if not existing:  # table not created yet (read-only database)
+                    continue
+                missing.extend(
+                    f"{table.name}.{column.name}"
+                    for column in table.columns
+                    if column.name not in existing
+                )
+        if missing:
+            raise RuntimeError(
+                f"The job database {self.database} was created by an older "
+                f"version of gridtk and lacks the column(s) {', '.join(missing)}. "
+                "Let its jobs finish with that version, or delete the database "
+                f"(and the logs directory {self.logs_dir}) to start afresh."
+            )
 
     def submit_job(self, name, command, array, dependencies, git_guard=None):
         """Submit a job and record it in the database.
