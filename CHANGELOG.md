@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file. See [commit
 
 ### ⚠ BREAKING CHANGES
 
-* drop support for Python 3.9 and 3.10: the minimum supported version is now 3.11, matching the `python_min` of conda-forge (CFEP-25); continuous integration tests Python 3.12, 3.13 and 3.14
+* drop support for Python 3.9 and 3.10: the minimum supported version is now 3.11, matching the `python_min` of conda-forge (CFEP-25); continuous integration tests Python 3.11, 3.12, 3.13 and 3.14
 
 ### Features
 
