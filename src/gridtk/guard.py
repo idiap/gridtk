@@ -72,18 +72,18 @@ class RepositoryState:
     """sha256 of ``git status --porcelain`` including untracked files."""
 
     @property
-    def dirty(self) -> bool:
+    def is_dirty(self) -> bool:
         """Whether the working tree differs from ``HEAD`` (untracked files included)."""
         return self.status_sha256 != _EMPTY_SHA256
 
     def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-serializable representation (``dirty`` included)."""
+        """Return a JSON-serializable representation (``is_dirty`` included)."""
         return {
             "repo": str(self.repo),
             "head": self.head,
             "diff_sha256": self.diff_sha256,
             "status_sha256": self.status_sha256,
-            "dirty": self.dirty,
+            "is_dirty": self.is_dirty,
         }
 
     @classmethod
@@ -98,7 +98,7 @@ class RepositoryState:
 
     def describe(self) -> str:
         """Return a one-line human-readable description of the state."""
-        tree = "dirty" if self.dirty else "clean"
+        tree = "dirty" if self.is_dirty else "clean"
         return f"{self.repo} @ {self.head[:12]} ({tree})"
 
     def guard_script(self) -> str:
