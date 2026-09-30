@@ -234,14 +234,26 @@ gridtk submit --- python my_code.py
     help="Submits the job N times. Each job will depend on the job before.",
 )
 @click.option(
-    "--git-guard/--no-git-guard",
-    default=False,
+    "--git-guard",
+    "git_guard",
+    is_flag=False,
+    flag_value=".",
+    default=None,
+    metavar="[DIR]",
+    type=click.Path(path_type=Path),
     help=(
-        "Pin the job to the git repository containing the current directory: its "
-        "HEAD, tracked changes and untracked files are recorded at submission and "
-        "the job aborts with exit code 75 if any of them changed when it starts "
-        "(useful for code installed in editable mode). Requires the --- form."
+        "Pin the job to the git repository containing DIR (default: the current "
+        "directory): its HEAD, tracked changes and untracked files are recorded at "
+        "submission and the job aborts with exit code 75 if any of them changed "
+        "when it starts (useful for code installed in editable mode). Requires the "
+        "--- form."
     ),
+)
+@click.option(
+    "--no-git-guard",
+    is_flag=True,
+    default=False,
+    help="Do not pin the job to a git repository (overrides --git-guard).",
 )
 # sbatch options
 @click.option("-A", "--account", hidden=True)
@@ -363,7 +375,8 @@ def submit(
     array: str,
     dependencies: str,
     repeat: int,
-    git_guard: bool,
+    git_guard: Path | None,
+    no_git_guard: bool,
     output_json: bool,
     script: str,
     **kwargs,
@@ -373,14 +386,14 @@ def submit(
 
     job_manager: JobManager = ctx.meta["job_manager"]
     git_repo = None
-    if git_guard:
+    if git_guard is not None and not no_git_guard:
         if "---" not in script:
             raise click.UsageError(
                 "--git-guard requires the command form of submission "
                 "(gridtk submit [options] --- command)"
             )
         try:
-            git_repo = guard.repository_root(Path.cwd())
+            git_repo = guard.repository_root(git_guard)
         except RuntimeError as e:
             raise click.UsageError(f"--git-guard: {e}") from e
     # reconstruct the command with kwargs and script

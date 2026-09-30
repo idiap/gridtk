@@ -257,10 +257,10 @@ by policy.
 Code installed in *editable* mode (`pip install -e .`, `pixi`/`uv` project environments)
 is imported from the working copy when the job **starts**, possibly hours after
 submission. Edits, commits or branch switches made in between silently change what a
-queued job computes. The `--git-guard` option records a fingerprint of the git
-repository containing the current directory at submission time (the `HEAD` commit, a
-hash of the tracked changes and a hash of the status including untracked files) and
-makes the generated script re-check it when the job starts:
+queued job computes. The `--git-guard [DIR]` option records a fingerprint of the git
+repository containing `DIR` (by default, the current directory) at submission time
+(the `HEAD` commit, a hash of the tracked changes and a hash of the status including
+untracked files) and makes the generated script re-check it when the job starts:
 
 ```bash
 $ gridtk submit --git-guard --job-name=train --- python train.py
@@ -279,8 +279,17 @@ explains what differs in its log; `gridtk list` shows it as `FAILED (75)`. Fix o
 restore the working copy and use `gridtk resubmit`, which pins the job to the
 repository as it is at resubmission time. Set `GRIDTK_GIT_GUARD=0` in the job
 environment (e.g. `--export=ALL,GRIDTK_GIT_GUARD=0`) to skip the check for a
-throwaway run, or `GRIDTK_SUBMIT_GIT_GUARD=1` in your shell to enable the guard by
-default.
+throwaway run, or `GRIDTK_SUBMIT_GIT_GUARD=.` in your shell to enable the guard by
+default (`--no-git-guard` then disables it for one submission).
+
+Pass a directory to pin the job to another repository than the one you submit from,
+for example to run the code of a branch checked out in a `git worktree` while keeping
+the job database and logs in the main checkout:
+
+```bash
+$ gridtk submit --git-guard ../project-feature --job-name=train \
+    --- pixi run --manifest-path ../project-feature/pyproject.toml python train.py
+```
 
 The guard requires the `---` form of submission (gridtk must generate the script) and
 `git` on the compute nodes. Add `jobs.sql3` and the logs directory to `.gitignore` when

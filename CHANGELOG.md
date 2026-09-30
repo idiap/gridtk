@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file. See [commit
 
 ### Features
 
-* add `--git-guard` to `gridtk submit`: records the HEAD commit and hashes of the tracked changes and status (untracked files included) of the git repository containing the current directory, and makes the generated script abort with exit code 75 when they differ at job start; `gridtk report` shows the recorded state (also with `--json`), `gridtk resubmit` pins the job to the repository as it is at resubmission time, and `GRIDTK_GIT_GUARD=0` in the job environment skips the check
+* add `--git-guard [DIR]` to `gridtk submit`: records the HEAD commit and hashes of the tracked changes and status (untracked files included) of the git repository containing `DIR` (default: the current directory; `--no-git-guard` overrides a `GRIDTK_SUBMIT_GIT_GUARD` default), and makes the generated script abort with exit code 75 when they differ at job start; `gridtk report` shows the recorded state (also with `--json`), `gridtk resubmit` pins the job to the repository as it is at resubmission time, and `GRIDTK_GIT_GUARD=0` in the job environment skips the check
 * opening a job database written by an older gridtk version (missing the `jobs.git_guard` column) now fails with a message asking to let its jobs finish with that version or to delete it, instead of a database error
 * Unpin tabulate and click so installations can match more options
 * development QA moves from pre-commit and mypy to prek and ty (`pixi run qa`); the `dev` extra now installs `gridtk[doc,test,qa]`
