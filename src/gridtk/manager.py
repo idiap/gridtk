@@ -199,7 +199,7 @@ class JobManager:
 
         ``create_all`` only creates missing *tables*, so a database written by an
         older gridtk version may lack columns added since (``jobs.git_guard``
-        was introduced in 3.3.0).  Job databases are short-lived, so rather than
+        was introduced in 4.0.0).  Job databases are short-lived, so rather than
         migrating them in place we ask the user to start a fresh one.
         """
         if not self.database.exists():
