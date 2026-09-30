@@ -50,6 +50,20 @@ def job_ids_from_dep_str(dependency_string: str | None) -> list[int]:
     return list(map(int, job_ids))
 
 
+def add_default_dep_type(dependency_string: str | None) -> str | None:
+    """Prefix ``afterany:`` to dependencies that start with a job id.
+
+    sbatch reads a bare job id (``5``) as ``afterany:5`` but rejects a bare list of
+    them (``5:6``), which ``--repeat`` builds by appending job ids.  Making the type
+    explicit gives both the meaning sbatch gives a single id.
+    """
+    if not dependency_string:
+        return dependency_string
+    # keep the "," (all of) and "?" (any of) separators
+    specs = re.split(r"([,?])", dependency_string)
+    return "".join(f"afterany:{spec}" if spec[:1].isdigit() else spec for spec in specs)
+
+
 def replace_job_ids_in_dep_str(dependency_string, replacements):
     """Replace job IDs in a dependency string with new IDs from a list."""
     if not dependency_string:

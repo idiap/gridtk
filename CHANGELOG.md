@@ -26,7 +26,7 @@ All notable changes to this project will be documented in this file. See [commit
 
 ### Bug Fixes
 
-* `gridtk submit --repeat N` without `--dependency` makes each job depend on the previous ones with `afterany:`; from the third job on, gridtk used to pass `--dependency <id1>:<id2>`, which sbatch rejects
+* `gridtk submit --dependency` reads job ids given without a type (`5`, `5:6`) as `afterany`, as sbatch does for a single id: `--repeat N`, with or without `--dependency <id>`, used to pass lists such as `--dependency <id1>:<id2>` without a type, which sbatch rejects
 
 ## [3.2.0](https://github.com/idiap/gridtk/compare/v3.1.0...v3.2.0) (2026-03-17)
 

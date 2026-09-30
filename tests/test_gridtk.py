@@ -17,6 +17,7 @@ from click.testing import CliRunner
 
 from gridtk.__main__ import cli
 from gridtk.tools import (
+    add_default_dep_type,
     job_ids_from_dep_str,
     parse_array_indexes,
     replace_job_ids_in_dep_str,
@@ -121,6 +122,24 @@ def test_parse_array_indexes():
     # Non-integer segment (should raise ValueError)
     with pytest.raises(ValueError):
         parse_array_indexes("1,2,three")
+
+
+@pytest.mark.parametrize(
+    ("dependencies", "expected"),
+    [
+        (None, None),
+        ("", ""),
+        ("5", "afterany:5"),
+        ("5:6", "afterany:5:6"),
+        ("5+10", "afterany:5+10"),
+        ("afterok:5:6", "afterok:5:6"),
+        ("5,afterok:6", "afterany:5,afterok:6"),
+        ("afterok:5?6", "afterok:5?afterany:6"),
+        ("singleton", "singleton"),
+    ],
+)
+def test_add_default_dep_type(dependencies, expected):
+    assert add_default_dep_type(dependencies) == expected
 
 
 def test_extract_job_ids_from_dep_str():
@@ -558,7 +577,7 @@ def test_submit_with_dependencies(mock_check_output, runner):
                 "--error",
                 "logs/gridtk.%j.out",
                 "--dependency",
-                f"{first_grid_id}",
+                f"afterany:{first_grid_id}",
                 "script.sh",
             ],
             text=True,
@@ -587,7 +606,7 @@ def test_submit_with_dependencies(mock_check_output, runner):
                 "--error",
                 f"{tmpdir}/logs/gridtk.%j.out",
                 "--dependency",
-                str(first_grid_id + 10),
+                f"afterany:{first_grid_id + 10}",
                 "script.sh",
             ],
             text=True,
@@ -693,6 +712,34 @@ Deleted job 4 with slurm id {second_grid_id + 10}
 Deleted job 5 with slurm id {third_grid_id + 10}
 """
         )
+
+
+@pytest.mark.parametrize(
+    ("dependency", "dep_type"), [("1", "afterany"), ("afterok:1", "afterok")]
+)
+@patch("subprocess.check_output")
+def test_submit_repeat_after_dependency(
+    mock_check_output, runner, dependency, dep_type
+):
+    """Each repeated job depends on the given job and on the previous repeats,
+    with a dependency type sbatch accepts (a bare id means afterany)."""
+    with runner.isolated_filesystem():
+        _submit_job(runner=runner, mock_check_output=mock_check_output, job_id=1000)
+        mock_check_output.side_effect = [_sbatch_output(1001 + i) for i in range(3)]
+        result = runner.invoke(
+            cli, ["submit", "--dependency", dependency, "--repeat", "3", "job.sh"]
+        )
+        assert_click_runner_result(result)
+        assert result.output == "2\n3\n4\n"
+        dependencies = [
+            call.args[0][call.args[0].index("--dependency") + 1]
+            for call in mock_check_output.call_args_list[-3:]
+        ]
+        assert dependencies == [
+            f"{dep_type}:1000",
+            f"{dep_type}:1000:1001",
+            f"{dep_type}:1000:1001:1002",
+        ]
 
 
 @patch("subprocess.check_output")

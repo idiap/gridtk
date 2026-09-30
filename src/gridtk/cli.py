@@ -14,6 +14,7 @@ from pathlib import Path
 import click
 
 from . import guard
+from .tools import add_default_dep_type
 
 
 class CustomGroup(click.Group):
@@ -225,7 +226,11 @@ gridtk submit --- python my_code.py
     "-d",
     "--dependency",
     "dependencies",
-    help="Depend on other jobs that are already in the list of gridtk.",
+    help=(
+        "Depend on other jobs that are already in the list of gridtk, as in sbatch "
+        "but with local job ids; ids given without a type (e.g. 5 or 5:6) mean "
+        "afterany."
+    ),
 )
 @click.option(
     "--repeat",
@@ -233,7 +238,8 @@ gridtk submit --- python my_code.py
     type=click.INT,
     help=(
         "Submits the job N times. Each job depends on the ones before, with the "
-        "dependency type of --dependency (default: afterany)."
+        "dependency type of --dependency (default: afterany, as for job ids given "
+        "without a type)."
     ),
 )
 @click.option(
@@ -376,7 +382,7 @@ def submit(
     ctx: click.Context,
     job_name: str,
     array: str,
-    dependencies: str,
+    dependencies: str | None,
     repeat: int,
     git_guard: Path | None,
     no_git_guard: bool,
@@ -416,6 +422,7 @@ def submit(
 
     command.extend(script)
 
+    dependencies = add_default_dep_type(dependencies)
     with job_manager as session:
         if repeat > 1:
             if dependencies is not None and (
@@ -445,7 +452,6 @@ def submit(
             else:
                 click.echo(job.id)
             deps: list[str] = str(dependencies or "").split(",")
-            # sbatch reads a bare job id as afterany, but not a list of them
             deps[-1] = f"{deps[-1]}:{job.id}" if deps[-1] else f"afterany:{job.id}"
             dependencies = ",".join(deps)
         session.commit()
