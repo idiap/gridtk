@@ -23,6 +23,11 @@ All notable changes to this project will be documented in this file. See [commit
 * Unpin tabulate and click so installations can match more options
 * development QA moves from pre-commit and mypy to prek and ty (`pixi run qa`); the `dev` extra now installs `gridtk[doc,test,qa]`
 
+
+### Bug Fixes
+
+* `gridtk submit --repeat N` without `--dependency` makes each job depend on the previous ones with `afterany:`; from the third job on, gridtk used to pass `--dependency <id1>:<id2>`, which sbatch rejects
+
 ## [3.2.0](https://github.com/idiap/gridtk/compare/v3.1.0...v3.2.0) (2026-03-17)
 
 
