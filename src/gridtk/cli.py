@@ -231,7 +231,10 @@ gridtk submit --- python my_code.py
     "--repeat",
     default=1,
     type=click.INT,
-    help="Submits the job N times. Each job will depend on the job before.",
+    help=(
+        "Submits the job N times. Each job depends on the ones before, with the "
+        "dependency type of --dependency (default: afterany)."
+    ),
 )
 @click.option(
     "--git-guard",
@@ -442,7 +445,8 @@ def submit(
             else:
                 click.echo(job.id)
             deps: list[str] = str(dependencies or "").split(",")
-            deps[-1] = f"{deps[-1]}:{job.id}" if deps[-1] else str(job.id)
+            # sbatch reads a bare job id as afterany, but not a list of them
+            deps[-1] = f"{deps[-1]}:{job.id}" if deps[-1] else f"afterany:{job.id}"
             dependencies = ",".join(deps)
         session.commit()
 
