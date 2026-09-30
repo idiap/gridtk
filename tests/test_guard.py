@@ -100,14 +100,14 @@ def test_repository_state_and_bash_guard_agree(tmp_path):
     state = guard.repository_state(repo)
     assert state.repo == repo
     assert state.head == _git(repo, "rev-parse", "HEAD")
-    assert not state.dirty
+    assert not state.is_dirty
     assert _run_guard(state) == 0
 
     # a tracked change trips the guard
     (repo / "code.py").write_text("print('v2')\n")
     assert _run_guard(state) == guard.GUARD_EXIT_CODE
     dirty = guard.repository_state(repo)
-    assert dirty.dirty
+    assert dirty.is_dirty
     assert dirty.diff_sha256 != state.diff_sha256
     assert _run_guard(dirty) == 0
 
@@ -122,7 +122,7 @@ def test_repository_state_and_bash_guard_agree(tmp_path):
     assert _run_guard(dirty) == guard.GUARD_EXIT_CODE
     committed = guard.repository_state(repo)
     assert committed.head != state.head
-    assert not committed.dirty
+    assert not committed.is_dirty
     assert _run_guard(committed) == 0
 
     # the guard can be switched off in the job environment
@@ -156,7 +156,7 @@ def test_submit_git_guard_records_state(mock_check_output, runner, tmp_path):
         head = _git(repo, "rev-parse", "HEAD")
         assert report["git_guard"]["repo"] == str(repo)
         assert report["git_guard"]["head"] == head
-        assert report["git_guard"]["dirty"] is False
+        assert report["git_guard"]["is_dirty"] is False
 
         mock_check_output.side_effect = _slurm_replies(_sacct_json(1000))
         result = runner.invoke(cli, ["report"])
