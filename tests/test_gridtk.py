@@ -813,3 +813,92 @@ if __name__ == "__main__":
     import pytest
 
     sys.exit(pytest.main())
+
+
+def _sacct_record(job_id, state, return_code, signal=0, derived=0):
+    """Return a ``sacct --json`` job record with separate exit codes."""
+    return {
+        "job_id": job_id,
+        "state": {"current": [state], "reason": "None"},
+        "nodes": "node001",
+        "exit_code": {
+            "return_code": {"set": True, "number": return_code},
+            "signal": {"id": {"set": bool(signal), "number": signal}},
+        },
+        "derived_exit_code": {
+            "return_code": {"set": True, "number": derived},
+            "signal": {"id": {"set": False, "number": 0}},
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("record", "expected"),
+    [
+        # the batch script failed, no srun step (derived exit code stays 0)
+        (_sacct_record(1, "FAILED", 75), "75"),
+        # killed by a signal (e.g. scancel -s KILL)
+        (_sacct_record(1, "CANCELLED", 0, signal=9), "0:9"),
+        (_sacct_record(1, "COMPLETED", 0), "0"),
+        # older sacct without exit_code
+        ({"derived_exit_code": {"return_code": {"number": 2}}}, "2"),
+        # squeue reports no exit code
+        ({}, "0"),
+    ],
+)
+def test_exit_code_from_status(record, expected):
+    from gridtk.models import exit_code_from_status
+
+    assert exit_code_from_status(record) == expected
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "expected"), [("75:0", "75"), ("0:15", "0:15"), ("0:0", "0")]
+)
+def test_exit_code_from_scontrol(exit_code, expected):
+    from gridtk.manager import parse_scontrol_output
+    from gridtk.models import exit_code_from_status
+
+    output = f"JobId=1 JobState=FAILED Reason=None ExitCode={exit_code} NodeList=n1"
+    assert exit_code_from_status(parse_scontrol_output(output)) == expected
+
+
+@patch("subprocess.check_output")
+def test_list_shows_batch_exit_code(mock_check_output, runner):
+    """The exit code of the batch script is shown, not the derived one of the
+    job steps, which is 0 for jobs without ``srun``."""
+    with runner.isolated_filesystem():
+        _submit_job(runner=runner, mock_check_output=mock_check_output, job_id=1000)
+        mock_check_output.side_effect = _make_side_effect(
+            [json.dumps({"jobs": [_sacct_record(1000, "FAILED", 75)]})]
+        )
+        result = runner.invoke(cli, ["list", "--json"])
+        assert_click_runner_result(result)
+        job = json.loads(result.output)[0]
+        assert job["state"] == "FAILED"
+        assert str(job["exit_code"]) == "75"
+
+
+@patch("subprocess.check_output")
+def test_list_reads_exit_code_of_jobs_finished_in_squeue(mock_check_output, runner):
+    """Slurm keeps finished jobs in squeue for a while, without exit code: gridtk
+    reads those from sacct, and keeps squeue's state if sacct lacks them."""
+    replies = {"squeue": "1000|FAILED|NonZeroExitCode|node001\n"}
+
+    def side_effect(command, **kwargs):
+        return replies[command[0]]
+
+    with runner.isolated_filesystem():
+        _submit_job(runner=runner, mock_check_output=mock_check_output, job_id=1000)
+        mock_check_output.side_effect = side_effect
+
+        replies["sacct"] = json.dumps({"jobs": [_sacct_record(1000, "FAILED", 75)]})
+        result = runner.invoke(cli, ["list", "--json"])
+        assert_click_runner_result(result)
+        assert str(json.loads(result.output)[0]["exit_code"]) == "75"
+        assert mock_check_output.call_args_list[-1].args[0][0] == "sacct"
+
+        replies["sacct"] = json.dumps({"jobs": []})
+        result = runner.invoke(cli, ["list", "--json"])
+        assert_click_runner_result(result)
+        assert json.loads(result.output)[0]["state"] == "FAILED"
