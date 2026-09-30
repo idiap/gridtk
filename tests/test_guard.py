@@ -183,6 +183,44 @@ def test_submit_without_git_guard_records_nothing(mock_check_output, runner, tmp
         assert "gridtk git guard" not in result.output
 
 
+@pytest.mark.parametrize("separate", [True, False])
+@patch("subprocess.check_output")
+def test_submit_git_guard_on_another_repository(
+    mock_check_output, runner, tmp_path, separate
+):
+    # jobs are submitted from one folder (holding jobs.sql3 and logs/) and pinned to
+    # another repository, e.g. a git worktree of a branch
+    other = _make_repo(tmp_path / "other")
+    mock_check_output.return_value = "Submitted batch job 1000\n"
+    with runner.isolated_filesystem(temp_dir=tmp_path):
+        option = ["--git-guard", str(other)] if separate else [f"--git-guard={other}"]
+        result = runner.invoke(cli, ["submit", *option, "---", "hostname"])
+        assert result.exit_code == 0, result.output
+
+        mock_check_output.side_effect = _slurm_replies(_sacct_json(1000))
+        result = runner.invoke(cli, ["report", "--json"])
+        assert result.exit_code == 0, result.output
+        report = json.loads(result.output)[0]
+        assert report["git_guard"]["repo"] == str(other)
+        assert report["git_guard"]["head"] == _git(other, "rev-parse", "HEAD")
+
+
+@patch("subprocess.check_output")
+def test_submit_no_git_guard_overrides_default(mock_check_output, runner, tmp_path):
+    repo = _make_repo(tmp_path / "repo")
+    mock_check_output.return_value = "Submitted batch job 1000\n"
+    with runner.isolated_filesystem(temp_dir=repo):
+        result = runner.invoke(
+            cli,
+            ["submit", "--no-git-guard", "---", "hostname"],
+            env={"GRIDTK_SUBMIT_GIT_GUARD": "."},
+        )
+        assert result.exit_code == 0, result.output
+        mock_check_output.side_effect = _slurm_replies(_sacct_json(1000))
+        result = runner.invoke(cli, ["report", "--json"])
+        assert json.loads(result.output)[0]["git_guard"] is None
+
+
 def test_submit_git_guard_requires_triple_dash(runner, tmp_path):
     repo = _make_repo(tmp_path / "repo")
     with runner.isolated_filesystem(temp_dir=repo):
