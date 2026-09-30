@@ -163,6 +163,26 @@ class JobDependency:
 mapper_registry.map_imperatively(JobDependency, job_dependencies)
 
 
+def exit_code_from_status(job_status_dict: dict) -> str:
+    """Return the exit code in a job status (shaped like ``sacct --json``).
+
+    ``exit_code`` is the status of the batch script; ``derived_exit_code`` is the
+    highest status of the job steps (``srun``), 0 for most batch jobs, so it only
+    serves as a fallback.  A job killed by a signal is reported as
+    ``<code>:<signal>``, as ``sacct`` does.
+    """
+    code = (
+        job_status_dict.get("exit_code")
+        or job_status_dict.get("derived_exit_code")
+        or {}
+    )
+    number = code.get("return_code", {}).get("number", 0)
+    signal = code.get("signal", {}).get("id", {})
+    if signal.get("set", True) and signal.get("number"):
+        return f"{number}:{signal['number']}"
+    return str(number)
+
+
 class Job(Base):
     """Represents a job in the database."""
 
@@ -311,7 +331,7 @@ class Job(Base):
             warnings.warn(f"Could not update the job state for {self}")
             return
         self.state = job_status_dict["state"]["current"][0].upper()
-        self.exit_code = job_status_dict["derived_exit_code"]["return_code"]["number"]
+        self.exit_code = exit_code_from_status(job_status_dict)
         self.nodes = job_status_dict["nodes"]
         if self.nodes == "None assigned":
             # TODO: sometimes only the state_reason from squeue contains the reason
