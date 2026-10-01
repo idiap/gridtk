@@ -252,8 +252,9 @@ $ gridtk submit --repeat=3 job.sh
 This will submit 3 jobs with the same script and the same options where each job
 will depend on the previous ones (`afterany`, so that the chain continues when a
 job reaches its time limit; pass e.g. `--dependency afterok:<id>` to choose another
-type, or `--dependency <id>` to also wait for an earlier job). This is useful if your script can resume from a checkpoint and you want to
-run it effectively for a longer time than allowed by policy.
+type, or `--dependency <id>` to also wait for an earlier job). This is useful if your
+script can resume from a checkpoint and you want to run it effectively for a longer time
+than allowed by policy.
 
 ### Pinning a Job to the State of a Git Repository
 
