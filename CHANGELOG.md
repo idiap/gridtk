@@ -28,6 +28,7 @@ All notable changes to this project will be documented in this file. See [commit
 
 * `gridtk submit --dependency` reads job ids given without a type (`5`, `5:6`) as `afterany`, as sbatch does for a single id: `--repeat N`, with or without `--dependency <id>`, used to pass lists such as `--dependency <id1>:<id2>` without a type, which sbatch rejects
 * `gridtk list`, `report` and `wait` show the exit code of the batch script (sacct's `exit_code`) instead of the derived exit code of the job steps, which is 0 for jobs without `srun`, so failed jobs no longer show as `FAILED (0)`; jobs killed by a signal show `<code>:<signal>` as in sacct, and jobs that squeue still lists after they finished are read from sacct, since squeue reports no exit code
+* `gridtk submit --dependency` with several dependency types (`afterok:5,afterany:3`) gives each job id its own slurm id: the ids were replaced in database order, so jobs could swap dependency types; a job id given in more than one type (`afterok:3,afterany:3`) no longer fails
 
 ## [3.2.0](https://github.com/idiap/gridtk/compare/v3.1.0...v3.2.0) (2026-03-17)
 

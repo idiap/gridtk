@@ -310,7 +310,8 @@ class JobManager:
             self.session.refresh(job)
 
             if dependencies:
-                # add dependency relationships
+                # add dependency relationships (once per job: an id may appear in
+                # several dependency types)
                 dep_job_ids = job_ids_from_dep_str(dependencies)
                 self.session.add_all(
                     [
@@ -318,7 +319,7 @@ class JobManager:
                             job_id=job.id,
                             waited_for_job_id=dep_id,
                         )
-                        for dep_id in dep_job_ids
+                        for dep_id in set(dep_job_ids)
                     ]
                 )
         except sqlalchemy.exc.SQLAlchemyError as e:
