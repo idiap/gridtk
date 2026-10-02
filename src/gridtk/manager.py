@@ -125,11 +125,12 @@ FINISHED_STATES = frozenset(
         "NODE_FAIL",
         "OUT_OF_MEMORY",
         "PREEMPTED",
+        "REVOKED",
         "SPECIAL_EXIT",
         "TIMEOUT",
     }
 )
-"""Job states after which Slurm knows the exit code of a job."""
+"""Terminal job states, after which Slurm knows the exit code of a job."""
 
 
 def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
