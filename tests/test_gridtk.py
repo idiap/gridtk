@@ -168,7 +168,9 @@ def test_extract_job_ids_from_dep_str():
     ]:
         result = job_ids_from_dep_str(dep_str)
         assert result == expected_result
-        replaced_deps = replace_job_ids_in_dep_str(dep_str, [v + 1000 for v in result])
+        replaced_deps = replace_job_ids_in_dep_str(
+            dep_str, {v: v + 1000 for v in result}
+        )
         assert replaced_deps == expected_replaced
 
 
@@ -712,6 +714,28 @@ Deleted job 4 with slurm id {second_grid_id + 10}
 Deleted job 5 with slurm id {third_grid_id + 10}
 """
         )
+
+
+@pytest.mark.parametrize(
+    ("dependency", "expected"),
+    [
+        ("afterok:2,afterany:1", "afterok:1001,afterany:1000"),
+        ("afterok:2?afterany:1+5", "afterok:1001?afterany:1000+5"),
+        ("afterok:1,afterany:1", "afterok:1000,afterany:1000"),
+    ],
+)
+@patch("subprocess.check_output")
+def test_submit_dependency_keeps_order(mock_check_output, runner, dependency, expected):
+    """Each job id of the dependency is replaced by the slurm id of that job,
+    whatever the order of the ids or how often they appear."""
+    with runner.isolated_filesystem():
+        _submit_job(runner=runner, mock_check_output=mock_check_output, job_id=1000)
+        _submit_job(runner=runner, mock_check_output=mock_check_output, job_id=1001)
+        mock_check_output.return_value = _sbatch_output(1002)
+        result = runner.invoke(cli, ["submit", "--dependency", dependency, "job.sh"])
+        assert_click_runner_result(result)
+        args = mock_check_output.call_args.args[0]
+        assert args[args.index("--dependency") + 1] == expected
 
 
 @pytest.mark.parametrize(

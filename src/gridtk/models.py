@@ -269,7 +269,7 @@ class Job(Base):
         if self.dependencies_str:
             dep_jobs = self.get_dependencies_jobs(session)
             dep_option = replace_job_ids_in_dep_str(
-                self.dependencies_str, [job.grid_id for job in dep_jobs]
+                self.dependencies_str, {job.id: job.grid_id for job in dep_jobs}
             )
             command.insert(0, "--dependency")
             command.insert(1, dep_option)

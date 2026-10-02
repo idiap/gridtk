@@ -5,6 +5,8 @@
 
 import re
 
+from collections.abc import Mapping
+
 
 def parse_array_indexes(indexes_str: str) -> list[int]:
     """Pares a string of array indexes to a list of integers."""
@@ -64,20 +66,20 @@ def add_default_dep_type(dependency_string: str | None) -> str | None:
     return "".join(f"afterany:{spec}" if spec[:1].isdigit() else spec for spec in specs)
 
 
-def replace_job_ids_in_dep_str(dependency_string, replacements):
-    """Replace job IDs in a dependency string with new IDs from a list."""
+def replace_job_ids_in_dep_str(
+    dependency_string: str | None, replacements: Mapping[int, int]
+) -> str | None:
+    """Replace each job ID in a dependency string with its ID in ``replacements``."""
     if not dependency_string:
         return dependency_string
     # Regular expression to match job IDs with optional +time
     job_id_pattern = re.compile(r"(\d+)(\+\d+)?")
 
-    # Function to replace matched job ID with corresponding replacement from the list
     def replacement_func(match):
-        time_part = match.group(2) if match.group(2) else ""
-        if replacements:
-            new_job_id = replacements.pop(0)
-            return f"{new_job_id}{time_part}"
-        raise ValueError("Not enough replacements")
+        job_id = int(match.group(1))
+        if job_id not in replacements:
+            raise ValueError(f"No replacement for job id {job_id}")
+        return f"{replacements[job_id]}{match.group(2) or ''}"
 
     # Substitute all job IDs in the dependency string
     return job_id_pattern.sub(replacement_func, dependency_string)
