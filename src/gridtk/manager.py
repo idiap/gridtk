@@ -48,8 +48,10 @@ def parse_scontrol_output(output: str) -> dict[str, Any]:
         result[key] = value
     # make results similar to sacct --json
     result["state"] = {"current": [result["JobState"]], "reason": result["Reason"]}
-    result["derived_exit_code"] = {
-        "return_code": {"number": result["ExitCode"].split(":")[0]}
+    return_code, _, signal = result["ExitCode"].partition(":")
+    result["exit_code"] = {
+        "return_code": {"number": int(return_code)},
+        "signal": {"id": {"number": int(signal or 0)}},
     }
     result["nodes"] = result["NodeList"]
     if result["nodes"] == "(null)":
@@ -104,13 +106,31 @@ def job_statuses_from_squeue(grid_ids: list[int]) -> dict[int, dict]:
         state = parts[1]
         reason = parts[2]
         nodes = parts[3] or "None assigned"
-        # Build a dict compatible with Job.update() (same shape as sacct --json)
+        # Build a dict compatible with Job.update() (same shape as sacct --json,
+        # but squeue does not report exit codes)
         status[job_id] = {
             "state": {"current": [state], "reason": reason},
-            "derived_exit_code": {"return_code": {"number": 0}},
             "nodes": nodes,
         }
     return status
+
+
+FINISHED_STATES = frozenset(
+    {
+        "BOOT_FAIL",
+        "CANCELLED",
+        "COMPLETED",
+        "DEADLINE",
+        "FAILED",
+        "NODE_FAIL",
+        "OUT_OF_MEMORY",
+        "PREEMPTED",
+        "REVOKED",
+        "SPECIAL_EXIT",
+        "TIMEOUT",
+    }
+)
+"""Terminal job states, after which Slurm knows the exit code of a job."""
 
 
 def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
@@ -118,25 +138,42 @@ def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
 
     Uses squeue first (live Slurm state) and falls back to sacct for jobs
     that squeue cannot find (e.g. finished jobs purged from Slurm's memory).
-    This avoids stale sacct data after resubmissions (see issue #17).
+    This avoids stale sacct data after resubmissions (see issue #17).  Jobs that
+    squeue still lists in a finished state are also read from sacct, since squeue
+    does not report their exit code.
     """
     grid_ids = list(grid_ids)
-    status = dict()
     # Try squeue first — it reflects the live Slurm state
-    status.update(job_statuses_from_squeue(grid_ids))
-    # Fall back to sacct for any jobs not found by squeue
+    live = job_statuses_from_squeue(grid_ids)
+    status = {
+        job_id: job_status
+        for job_id, job_status in live.items()
+        if job_status["state"]["current"][0] not in FINISHED_STATES
+    }
+    # Fall back to sacct for any other job
     remaining = [jid for jid in grid_ids if jid not in status]
     if not remaining:
         return status
+    status.update(_job_statuses_from_sacct(remaining))
+    # keep squeue's state for finished jobs sacct does not know (yet)
+    for job_id in remaining:
+        if job_id not in status and job_id in live:
+            status[job_id] = live[job_id]
+    return status
+
+
+def _job_statuses_from_sacct(grid_ids: list[int]) -> dict[int, dict]:
+    """Retrieve job statuses with ``sacct``, or ``scontrol`` if sacct fails."""
+    status = dict()
     try:
         output = subprocess.check_output(
-            ["sacct", "-j", ",".join([str(x) for x in remaining]), "--json"],
+            ["sacct", "-j", ",".join([str(x) for x in grid_ids]), "--json"],
             text=True,
             stderr=subprocess.DEVNULL,
         )
     except subprocess.CalledProcessError:
         # sacct failed too; try scontrol one-by-one as last resort
-        for job_id in remaining:
+        for job_id in grid_ids:
             job_status = job_status_from_scontrol(job_id)
             if job_status:
                 status[job_id] = job_status
