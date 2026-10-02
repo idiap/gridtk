@@ -807,14 +807,6 @@ def test_wait_command(mock_check_output, runner):
         assert "Job 1: FAILED" in result.output
 
 
-if __name__ == "__main__":
-    import sys
-
-    import pytest
-
-    sys.exit(pytest.main())
-
-
 def _sacct_record(job_id, state, return_code, signal=0, derived=0):
     """Return a ``sacct --json`` job record with separate exit codes."""
     return {
@@ -902,3 +894,11 @@ def test_list_reads_exit_code_of_jobs_finished_in_squeue(mock_check_output, runn
         result = runner.invoke(cli, ["list", "--json"])
         assert_click_runner_result(result)
         assert json.loads(result.output)[0]["state"] == "FAILED"
+
+
+if __name__ == "__main__":
+    import sys
+
+    import pytest
+
+    sys.exit(pytest.main())
