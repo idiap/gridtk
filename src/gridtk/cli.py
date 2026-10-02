@@ -702,36 +702,11 @@ def wait(ctx, job_ids, states, names, dependents, interval):
     """Wait for jobs to finish. Exits with code 1 if any job failed."""
     import time
 
-    from .manager import JobManager
+    from .manager import FINISHED_STATES, JobManager
 
     job_manager: JobManager = ctx.meta["job_manager"]
-    # Terminal states - jobs in these states won't change
-    terminal_states = {
-        "BOOT_FAIL",
-        "CANCELLED",
-        "COMPLETED",
-        "DEADLINE",
-        "FAILED",
-        "NODE_FAIL",
-        "OUT_OF_MEMORY",
-        "PREEMPTED",
-        "REVOKED",
-        "SPECIAL_EXIT",
-        "TIMEOUT",
-    }
     # Failed states - if any job ends in these, exit code 1
-    failed_states = {
-        "BOOT_FAIL",
-        "CANCELLED",
-        "DEADLINE",
-        "FAILED",
-        "NODE_FAIL",
-        "OUT_OF_MEMORY",
-        "PREEMPTED",
-        "REVOKED",
-        "SPECIAL_EXIT",
-        "TIMEOUT",
-    }
+    failed_states = FINISHED_STATES - {"COMPLETED"}
 
     while True:
         with job_manager as session:
@@ -742,7 +717,7 @@ def wait(ctx, job_ids, states, names, dependents, interval):
                 click.echo("No jobs found.")
                 return
 
-            all_terminal = all(job.state in terminal_states for job in jobs)
+            all_terminal = all(job.state in FINISHED_STATES for job in jobs)
             if all_terminal:
                 any_failed = any(job.state in failed_states for job in jobs)
                 for job in jobs:
@@ -755,7 +730,7 @@ def wait(ctx, job_ids, states, names, dependents, interval):
             # Show progress with state breakdown
             from collections import Counter
 
-            active = [j for j in jobs if j.state not in terminal_states]
+            active = [j for j in jobs if j.state not in FINISHED_STATES]
             counts = Counter(j.state for j in active)
             breakdown = ", ".join(
                 f"{n} {(s or 'UNKNOWN').lower()}" for s, n in sorted(counts.items())
