@@ -27,6 +27,7 @@ All notable changes to this project will be documented in this file. See [commit
 ### Bug Fixes
 
 * `gridtk submit --dependency` reads job ids given without a type (`5`, `5:6`) as `afterany`, as sbatch does for a single id: `--repeat N`, with or without `--dependency <id>`, used to pass lists such as `--dependency <id1>:<id2>` without a type, which sbatch rejects
+* `gridtk submit --dependency` with several dependency types (`afterok:5,afterany:3`) gives each job id its own slurm id: the ids were replaced in database order, so jobs could swap dependency types; a job id given in more than one type (`afterok:3,afterany:3`) no longer fails
 
 ## [3.2.0](https://github.com/idiap/gridtk/compare/v3.1.0...v3.2.0) (2026-03-17)
 
