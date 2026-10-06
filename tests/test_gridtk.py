@@ -720,7 +720,7 @@ Deleted job 5 with slurm id {third_grid_id + 10}
     ("dependency", "expected"),
     [
         ("afterok:2,afterany:1", "afterok:1001,afterany:1000"),
-        ("afterok:2?afterany:1+5", "afterok:1001?afterany:1000+5"),
+        ("afterok:2?after:1+5", "afterok:1001?after:1000+5"),
         ("afterok:1,afterany:1", "afterok:1000,afterany:1000"),
     ],
 )
