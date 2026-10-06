@@ -9,26 +9,29 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
-## [Unreleased](https://github.com/idiap/gridtk/compare/v3.2.1...HEAD)
+## [4.0.0](https://github.com/idiap/gridtk/compare/v3.2.1...v4.0.0) (2026-10-06)
 
 
 ### ⚠ BREAKING CHANGES
 
-* drop support for Python 3.9 and 3.10: the minimum supported version is now 3.11, matching the `python_min` of conda-forge (CFEP-25); continuous integration tests Python 3.11, 3.12, 3.13 and 3.14
+* drop support for Python 3.9 and 3.10: the minimum supported version is now 3.11, matching the `python_min` of conda-forge (CFEP-25); continuous integration tests Python 3.11, 3.12, 3.13 and 3.14 ([#41](https://github.com/idiap/gridtk/issues/41)) ([a01f8c9..f870845](https://github.com/idiap/gridtk/compare/a01f8c9..f870845))
 
 ### Features
 
-* add `--git-guard [DIR]` to `gridtk submit`: records the HEAD commit and hashes of the tracked changes and status (untracked files included) of the git repository containing `DIR` (default: the current directory; `--no-git-guard` overrides a `GRIDTK_SUBMIT_GIT_GUARD` default), and makes the generated script abort with exit code 75 when they differ at job start; `gridtk report` shows the recorded state (also with `--json`), `gridtk resubmit` pins the job to the repository as it is at resubmission time, and `GRIDTK_GIT_GUARD=0` in the job environment skips the check
-* opening a job database written by an older gridtk version (missing the `jobs.git_guard` column) now fails with a message asking to let its jobs finish with that version or to delete it, instead of a database error
-* Unpin tabulate and click so installations can match more options
-* development QA moves from pre-commit and mypy to prek and ty (`pixi run qa`); the `dev` extra now installs `gridtk[doc,test,qa]`
+* add `--git-guard [DIR]` to `gridtk submit`: records the HEAD commit and hashes of the tracked changes and status (untracked files included) of the git repository containing `DIR` (default: the current directory; `--no-git-guard` overrides a `GRIDTK_SUBMIT_GIT_GUARD` default), and makes the generated script abort with exit code 75 when they differ at job start; `gridtk report` shows the recorded state (also with `--json`), `gridtk resubmit` pins the job to the repository as it is at resubmission time, and `GRIDTK_GIT_GUARD=0` in the job environment skips the check ([#41](https://github.com/idiap/gridtk/issues/41)) ([1258d7d](https://github.com/idiap/gridtk/commit/1258d7d5e93479c930c2d22044ba0279caff7942))
+* opening a job database written by an older gridtk version (missing the `jobs.git_guard` column) now fails with a message asking to let its jobs finish with that version or to delete it, instead of a database error ([#41](https://github.com/idiap/gridtk/issues/41)) ([ae4545b](https://github.com/idiap/gridtk/commit/ae4545b7c433828374d477b218fe1ed8fe2b20e5))
+* Unpin tabulate and click so installations can match more options ([#41](https://github.com/idiap/gridtk/issues/41))([e70db45](https://github.com/idiap/gridtk/commit/e70db456b5ea4a3cc885014631f000fb89384d9c))
+* development QA moves from pre-commit and mypy to prek and ty (`pixi run qa`); the `dev` extra now installs `gridtk[doc,test,qa]` ([#41](https://github.com/idiap/gridtk/issues/41)) ([7bf6d3e](https://github.com/idiap/gridtk/commit/7bf6d3e796e22bfbf100e4aa7053c14310f9643a))
 
 
 ### Bug Fixes
 
 * `gridtk submit --dependency` reads job ids given without a type (`5`, `5:6`) as `afterany`, as sbatch does for a single id: `--repeat N`, with or without `--dependency <id>`, used to pass lists such as `--dependency <id1>:<id2>` without a type, which sbatch rejects
+ ([#43](https://github.com/idiap/gridtk/issues/43)) ([2f3dfba](https://github.com/idiap/gridtk/commit/2f3dfba20c00ba01bb4b336461969f538ec853f3))
 * `gridtk list`, `report` and `wait` show the exit code of the batch script (sacct's `exit_code`) instead of the derived exit code of the job steps, which is 0 for jobs without `srun`, so failed jobs no longer show as `FAILED (0)`; jobs killed by a signal show `<code>:<signal>` as in sacct, and jobs that squeue still lists after they finished are read from sacct, since squeue reports no exit code
+ ([#42](https://github.com/idiap/gridtk/issues/42)) ([26a6dd8](https://github.com/idiap/gridtk/commit/26a6dd82a2d7055f4c30e04dfb3e7363eec173d0))
 * `gridtk submit --dependency` with several dependency types (`afterok:5,afterany:3`) gives each job id its own slurm id: the ids were replaced in database order, so jobs could swap dependency types; a job id given in more than one type (`afterok:3,afterany:3`) no longer fails
+ ([#44](https://github.com/idiap/gridtk/issues/44)) ([3a9a987](https://github.com/idiap/gridtk/commit/3a9a98732040841fda042efa20c684e42e8e9dc4))
 
 ## [3.2.1](https://github.com/idiap/gridtk/compare/v3.2.0...v3.2.1) (2026-08-17)
 
