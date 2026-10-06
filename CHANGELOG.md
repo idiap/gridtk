@@ -30,6 +30,14 @@ All notable changes to this project will be documented in this file. See [commit
 * `gridtk list`, `report` and `wait` show the exit code of the batch script (sacct's `exit_code`) instead of the derived exit code of the job steps, which is 0 for jobs without `srun`, so failed jobs no longer show as `FAILED (0)`; jobs killed by a signal show `<code>:<signal>` as in sacct, and jobs that squeue still lists after they finished are read from sacct, since squeue reports no exit code
 * `gridtk submit --dependency` with several dependency types (`afterok:5,afterany:3`) gives each job id its own slurm id: the ids were replaced in database order, so jobs could swap dependency types; a job id given in more than one type (`afterok:3,afterany:3`) no longer fails
 
+## [3.2.1](https://github.com/idiap/gridtk/compare/v3.2.0...v3.2.1) (2026-08-17)
+
+
+### Bug Fixes
+
+* fix the documentation building process at Read The Docs ([#37](https://github.com/idiap/gridtk/issues/37)) ([7de360e](https://github.com/idiap/gridtk/commit/7de360e1bd3c0a3acc34bb7df222446ff3995640))
+* recommend uv for installation in README ([#33](https://github.com/idiap/gridtk/issues/33)) ([f468ecc](https://github.com/idiap/gridtk/commit/f468ecc3e841af078d46cf56b4fed10d5ae80460))
+
 ## [3.2.0](https://github.com/idiap/gridtk/compare/v3.1.0...v3.2.0) (2026-03-17)
 
 
