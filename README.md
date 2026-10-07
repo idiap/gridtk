@@ -431,11 +431,11 @@ call and are `null` when the job database is read-only.
 lines redrawn by progress bars (e.g. tqdm) only show their last update, which
 keeps reports short (use `--raw` for the logs as they are):
 ```bash
-$ gridtk report -j 4 --tail 2
+$ gridtk report -j 3 --tail 2
 ...
-Output file: logs/train.3800691.out
-[last 2 of 1532 lines]
-epoch 10: 100%|██████████| 500/500 [01:02<00:00, 8.01it/s]
+Output file: /idiap/temp/user/project/logs/train.3800785.out
+[last 2 of 4 lines]
+epoch 3: 100%|##########| 500/500
 done
 ```
 
