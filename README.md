@@ -249,11 +249,11 @@ dependency type (e.g. `--dependency 1` or `--dependency 1:2`) mean `afterany`, a
 a single id does in `sbatch`.
 
 To depend on jobs submitted outside gridtk, prefix their slurm job ids with
-`slurm:` (each of them, as in `--dependency afterok:1:slurm:3793602:slurm:3793603`).
+`slurm:` (each of them, as in `--dependency afterok:1:slurm:1234567:slurm:1234568`).
 Ids that are not in the job database are reported, and nothing is submitted:
 ```bash
-$ gridtk submit --dependency afterok:3793602 job.sh
-Error: job(s) 3793602 not found in jobs.sql3 (--dependency takes local ids; write slurm ids as slurm:<id>, e.g. afterok:slurm:3793602)
+$ gridtk submit --dependency afterok:1234567 job.sh
+Error: job(s) 1234567 not found in jobs.sql3 (--dependency takes local ids; write slurm ids as slurm:<id>, e.g. afterok:slurm:1234567)
 ```
 
 ### Repeat Jobs
@@ -379,9 +379,9 @@ When the output is piped, values are never truncated.
 $ gridtk list
 ID    SLURM  STATE       NAME        NODES   ELAPSED
 --  -------  ----------  ----------  ------  -------
- 1  3800685  COMPLETED   hello       hcne01     0:00
- 2  3800686  COMPLETED   train[0-3]  hcne01     0:20
- 3  3800692  FAILED (3)  fails       hcne01     0:00
+ 1  1234685  COMPLETED   hello       node01     0:00
+ 2  1234686  COMPLETED   train[0-3]  node01     0:20
+ 3  1234692  FAILED (3)  fails       node01     0:00
 3 jobs: 2 completed, 1 failed
 ```
 
@@ -407,21 +407,21 @@ $ gridtk list --json -o id,state,exit_code
 $ gridtk list --json | jq '.[0]'
 {
   "job_id": 1,
-  "slurm_id": 3800685,
+  "slurm_id": 1234685,
   "state": "COMPLETED",
   "name": "hello",
-  "nodes": "hcne01",
+  "nodes": "node01",
   "elapsed_seconds": 0,
   "dependencies": [],
   "exit_code": "0",
-  "output": "logs/hello.3800685.out",
+  "output": "logs/hello.1234685.out",
   "start": "2026-10-07T17:19:02",
   "array_task_ids": null,
   "git_guard": null,
   "command": "gridtk submit --- echo hello",
   "reason": null,
   "finished": true,
-  "outputs": ["logs/hello.3800685.out"]
+  "outputs": ["logs/hello.1234685.out"]
 }
 ```
 The elapsed and start times and the pending reason are read from Slurm on each
@@ -433,7 +433,7 @@ keeps reports short (use `--raw` for the logs as they are):
 ```bash
 $ gridtk report -j 3 --tail 2
 ...
-Output file: /idiap/temp/user/project/logs/train.3800785.out
+Output file: /home/user/project/logs/train.1234785.out
 [last 2 of 4 lines]
 epoch 3: 100%|##########| 500/500
 done

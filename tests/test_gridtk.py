@@ -169,9 +169,9 @@ def test_extract_job_ids_from_dep_str():
         ),
         # slurm ids are kept as they are
         (
-            "afterok:20:slurm:3793602,after:slurm:5+10",
+            "afterok:20:slurm:1234567,after:slurm:5+10",
             [20],
-            "afterok:1020:3793602,after:5+10",
+            "afterok:1020:1234567,after:5+10",
         ),
     ]:
         result = job_ids_from_dep_str(dep_str)
@@ -980,18 +980,18 @@ def test_submit_unknown_dependency(mock_check_output, runner):
         _submit_job(runner=runner, mock_check_output=mock_check_output, job_id=1000)
         calls = mock_check_output.call_count
         result = runner.invoke(
-            cli, ["submit", "--dependency", "afterok:1:3793602,afterany:7", "job.sh"]
+            cli, ["submit", "--dependency", "afterok:1:1234567,afterany:7", "job.sh"]
         )
         assert result.exit_code == 2
         assert (
-            "job(s) 3793602, 7 not found in jobs.sql3 (--dependency takes local "
-            "ids; write slurm ids as slurm:<id>, e.g. afterok:slurm:3793602)"
+            "job(s) 1234567, 7 not found in jobs.sql3 (--dependency takes local "
+            "ids; write slurm ids as slurm:<id>, e.g. afterok:slurm:1234567)"
         ) in result.output
         assert mock_check_output.call_count == calls  # sbatch was not called
 
         mock_check_output.return_value = _sbatch_output(1001)
         result = runner.invoke(
-            cli, ["submit", "--dependency", "afterok:1:slurm:3793602", "job.sh"]
+            cli, ["submit", "--dependency", "afterok:1:slurm:1234567", "job.sh"]
         )
         assert_click_runner_result(result)
         mock_check_output.side_effect = _make_side_effect(
