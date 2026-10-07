@@ -105,7 +105,7 @@ is `gridtk` by default (it is recommended to give a meaningful name using the
 `gridtk submit --job-name` option).
 The output files are written to the `logs/` directory by default (you may change
 the directory with the `gridtk --logs-dir` option); `gridtk list -v` shows them
-(see [Adjusting `gridtk list` Output](#adjusting-gridtk-list-output)).
+(see *Adjusting `gridtk list` Output* below).
 GridTK manages the log files for you, so you don't have to worry about knowing
 where they are stored or cleaning them up.
 
