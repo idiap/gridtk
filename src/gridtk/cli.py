@@ -243,7 +243,7 @@ gridtk submit --- python my_code.py
         "Depend on other jobs that are already in the list of gridtk, as in sbatch "
         "but with local job ids; ids given without a type (e.g. 5 or 5:6) mean "
         "afterany. Prefix slurm ids of jobs submitted outside gridtk with slurm: "
-        "(e.g. afterok:5:slurm:3793602)."
+        "(e.g. afterok:5:slurm:1234567)."
     ),
 )
 @click.option(
