@@ -10,8 +10,10 @@ import subprocess
 import tempfile
 import warnings
 
+from datetime import datetime
 from pathlib import Path
 from sqlite3 import Connection as SQLite3Connection
+from typing import Any
 
 from sqlalchemy import Column, ForeignKey, Integer, String, Table, event
 from sqlalchemy.engine import Engine
@@ -27,7 +29,11 @@ from sqlalchemy.orm import (
 from sqlalchemy.types import TypeDecorator
 
 from . import guard
-from .tools import job_ids_from_dep_str, replace_job_ids_in_dep_str
+from .tools import (
+    UnknownJobIdsError,
+    job_ids_from_dep_str,
+    replace_job_ids_in_dep_str,
+)
 
 
 # enable foreign key support in sqlite3
@@ -73,6 +79,23 @@ commands do not provide info for finished commands.
 
 sacct only returns these states https://slurm.schedmd.com/sacct.html#lbAG
 """
+
+FINISHED_STATES = frozenset(
+    {
+        "BOOT_FAIL",
+        "CANCELLED",
+        "COMPLETED",
+        "DEADLINE",
+        "FAILED",
+        "NODE_FAIL",
+        "OUT_OF_MEMORY",
+        "PREEMPTED",
+        "REVOKED",
+        "SPECIAL_EXIT",
+        "TIMEOUT",
+    }
+)
+"""Terminal job states, after which Slurm knows the exit code of a job."""
 
 
 class ObjectValue(TypeDecorator):
@@ -183,6 +206,15 @@ def exit_code_from_status(job_status_dict: dict) -> str:
     return str(number)
 
 
+def _slurm_number(value: Any) -> int | None:
+    """Return an integer from ``sacct --json``, which may wrap it in ``{number,
+    set}``, or ``None`` if it is unset.
+    """
+    if isinstance(value, dict):
+        value = value.get("number") if value.get("set", True) else None
+    return None if value is None else int(value)
+
+
 class Job(Base):
     """Represents a job in the database."""
 
@@ -218,6 +250,17 @@ class Job(Base):
         secondaryjoin=id == job_dependencies.c.job_id,
         viewonly=True,
     )
+
+    # The following attributes are not stored in the database: they are read
+    # from Slurm when jobs are updated, and are None otherwise (e.g. when the
+    # database is read-only).
+    __allow_unmapped__ = True
+    elapsed: int | None = None
+    """Seconds the job has been running."""
+    start: datetime | None = None
+    """When the job started (or is expected to start, if pending)."""
+    reason: str | None = None
+    """Why the job is in its state (e.g. ``Priority`` for a pending job)."""
 
     def __repr__(self) -> str:
         return (
@@ -263,6 +306,19 @@ class Job(Base):
             .filter(Job.id.in_(job_ids_from_dep_str(self.dependencies_str)))
             .all()
         )
+
+    def check_dependencies(self, session) -> None:
+        """Raise :class:`~gridtk.tools.UnknownJobIdsError` if jobs this job
+        depends on are not in the database (e.g. they were deleted).
+        """
+        known = {job.id for job in self.get_dependencies_jobs(session)}
+        missing = [
+            job_id
+            for job_id in dict.fromkeys(job_ids_from_dep_str(self.dependencies_str))
+            if job_id not in known
+        ]
+        if missing:
+            raise UnknownJobIdsError(missing)
 
     def submitted_command(self, fh, session):
         command = list(self.command)
@@ -336,10 +392,44 @@ class Job(Base):
         if self.nodes == "None assigned":
             # TODO: sometimes only the state_reason from squeue contains the reason
             self.nodes = job_status_dict["state"]["reason"]
+        reason = (job_status_dict["state"].get("reason") or "").strip("()")
+        self.reason = reason if reason not in ("", "None") else None
+        times = job_status_dict.get("time") or {}
+        self.elapsed = _slurm_number(times.get("elapsed"))
+        start = _slurm_number(times.get("start"))
+        self.start = datetime.fromtimestamp(start) if start else None
         assert self.state in JOB_STATES_MAPPING.values(), (
             f"Unknown job state {self.state}, read from {job_status_dict}"
         )
         return
+
+    @property
+    def finished(self) -> bool:
+        """Whether the job is in a terminal state."""
+        return self.state in FINISHED_STATES
+
+    @property
+    def state_label(self) -> str:
+        """The state, followed by the exit code if the job finished with one."""
+        label = str(self.state)
+        if self.finished and self.exit_code not in (None, "0"):
+            label += f" ({self.exit_code})"
+        return label
+
+    def output_paths(self, relative_to: Path | None = None) -> list[Path]:
+        """Return the output files, relative to ``relative_to`` (default: the
+        current directory) if they are inside it.
+        """
+        base = (relative_to or Path.cwd()).resolve()
+        paths = []
+        for path in self.output_files:
+            path = path.resolve()
+            try:
+                path = path.relative_to(base)
+            except ValueError:
+                pass
+            paths.append(path)
+        return paths
 
     @property
     def output_files(self):
