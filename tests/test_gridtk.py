@@ -301,6 +301,10 @@ def test_submit_triple_dash(mock_check_output: Mock, runner):
     assert mock_check_output.call_args.kwargs == {"text": True}
 
 
+def _headers(output):
+    return output.splitlines()[0].split()
+
+
 @patch("subprocess.check_output")
 def test_list_jobs(mock_check_output, runner):
     # override shutil.get_terminal_size to return a fixed size with COLUMNS=80
@@ -319,48 +323,98 @@ def test_list_jobs(mock_check_output, runner):
         mock_check_output.return_value = _pending_job_sacct_json(submit_job_id)
         result = runner.invoke(cli, ["list"])
         assert_click_runner_result(result)
-        assert str(submit_job_id) in result.output
         mock_check_output.assert_called_with(
             ["sacct", "-j", str(submit_job_id), "--json"],
             text=True,
             stderr=subprocess.DEVNULL,
         )
-        # full command
+        # compact overview: empty columns (ELAPSED) are hidden, and there is no
+        # summary line when the output is not a terminal
+        assert _headers(result.output) == ["ID", "SLURM", "STATE", "NAME", "NODES"]
+        assert result.output.splitlines()[2].split() == [
+            "1",
+            str(submit_job_id),
+            "PENDING",
+            "gridtk",
+            "(Unassigned)",
+        ]
+        assert len(result.output.splitlines()) == 3
+
+        # more columns with -v and -vv (empty ones stay hidden)
+        result = runner.invoke(cli, ["list", "-v"])
+        assert_click_runner_result(result)
+        assert _headers(result.output)[-2:] == ["EXIT", "OUTPUT"]
+        result = runner.invoke(cli, ["list", "-vv"])
+        assert_click_runner_result(result)
+        assert _headers(result.output)[-1] == "COMMAND"
+        # values are not truncated when the output is not a terminal
         assert "gridtk submit --wrap sleep\n" in result.output
-        # full log file name
         assert "logs/gridtk.9876543.out " in result.output
 
-        # test gridtk list --truncate
-        result = runner.invoke(cli, ["list", "--truncate"])
+        # forced truncation fits the terminal and keeps the end of log paths
+        result = runner.invoke(cli, ["list", "-vv", "--truncate"])
         assert_click_runner_result(result)
-        assert str(submit_job_id) in result.output
-        mock_check_output.assert_called_with(
-            ["sacct", "-j", str(submit_job_id), "--json"],
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-        # truncated command
-        assert "gridtk s..\n" in result.output
-        # truncated log file name
-        assert "logs/gridt.. " in result.output
+        assert all(len(line) <= 80 for line in result.output.splitlines())
+        assert "9876543.out" in result.output
+        assert "gridtk submit --wrap sleep" not in result.output
 
-        # test gridtk list --wrap
-        result = runner.invoke(cli, ["list", "--wrap"])
+        # deprecated --wrap shows full values
+        result = runner.invoke(cli, ["list", "-vv", "--wrap"])
         assert_click_runner_result(result)
-        assert str(submit_job_id) in result.output
-        mock_check_output.assert_called_with(
-            ["sacct", "-j", str(submit_job_id), "--json"],
-            text=True,
-            stderr=subprocess.DEVNULL,
+        assert "--wrap is deprecated" in result.output
+        assert "gridtk submit --wrap sleep\n" in result.output
+
+        # select columns
+        result = runner.invoke(cli, ["list", "-o", "id,state"])
+        assert_click_runner_result(result)
+        assert _headers(result.output) == ["ID", "STATE"]
+        result = runner.invoke(cli, ["list", "-o", "+command,-nodes,-slurm-id"])
+        assert_click_runner_result(result)
+        assert _headers(result.output) == ["ID", "STATE", "NAME", "COMMAND"]
+        result = runner.invoke(cli, ["list", "-o", "id,foo"])
+        assert result.exit_code == 2
+        assert "Unknown column 'foo'" in result.output
+
+        # explicitly requested columns are shown even if empty
+        result = runner.invoke(cli, ["list", "-o", "id,deps"])
+        assert_click_runner_result(result)
+        assert _headers(result.output) == ["ID", "DEPS"]
+
+        # shell-friendly outputs
+        result = runner.invoke(cli, ["list", "-q"])
+        assert_click_runner_result(result)
+        assert result.output == "1\n"
+        result = runner.invoke(cli, ["list", "--no-header", "-o", "id,name"])
+        assert_click_runner_result(result)
+        assert result.output.split() == ["1", "gridtk"]
+        result = runner.invoke(cli, ["list", "--summary"])
+        assert_click_runner_result(result)
+        assert result.output.splitlines()[-1] == "1 job: 1 pending"
+
+        result = runner.invoke(cli, ["list", "--json", "-q"])
+        assert result.exit_code == 2
+
+
+@patch("subprocess.check_output")
+def test_list_jobs_timing_from_squeue(mock_check_output, runner):
+    with runner.isolated_filesystem():
+        _submit_job(runner=runner, mock_check_output=mock_check_output, job_id=1000)
+        mock_check_output.return_value = (
+            "1000|RUNNING|None|node001|1-02:03:04|2026-01-31T12:00:00\n"
         )
-        # wraped command
-        assert "gridtk" in result.output
-        assert "submit" in result.output
-        assert "--wrap" in result.output
-        assert "sleep" in result.output
-        # wraped log file name
-        assert "logs/gridtk.9 " in result.output
-        assert "876543.out " in result.output
+        result = runner.invoke(cli, ["list", "-vv"])
+        assert_click_runner_result(result)
+        assert "ELAPSED" in _headers(result.output)
+        assert "1-02:03:04" in result.output
+        assert "2026-01-31 12:00" in result.output
+
+        result = runner.invoke(cli, ["list", "--json"])
+        assert_click_runner_result(result)
+        job = json.loads(result.output)[0]
+        assert job["elapsed_seconds"] == 93784
+        assert job["start"] == "2026-01-31T12:00:00"
+        assert job["reason"] is None
+        assert job["finished"] is False
 
 
 @patch("subprocess.check_output")
@@ -401,6 +455,160 @@ def test_report_job(mock_check_output, runner):
             text=True,
             stderr=subprocess.DEVNULL,
         )
+
+
+@patch("subprocess.check_output")
+def test_report_tail(mock_check_output, runner):
+    with runner.isolated_filesystem():
+        _submit_job(runner=runner, mock_check_output=mock_check_output, job_id=1000)
+        Path("logs/gridtk.1000.out").write_bytes(
+            b"start\n" + b"".join(b"\r%d%%" % i for i in range(101)) + b"\nok\ndone\n"
+        )
+        mock_check_output.return_value = json.dumps(
+            _jobs_sacct_dict([1000], "COMPLETED", "None", "node001")
+        )
+        result = runner.invoke(cli, ["report", "--tail", "2"])
+        assert_click_runner_result(result)
+        assert "[last 2 of 4 lines]\nok\ndone\n" in result.output
+        assert "start" not in result.output
+
+        result = runner.invoke(cli, ["report", "--json", "-n", "3"])
+        assert_click_runner_result(result)
+        log = json.loads(result.output)[0]["output_files"][0]
+        assert log["content"] == "100%\nok\ndone\n"
+        assert log["total_lines"] == 4
+        assert log["truncated"] is True
+
+        result = runner.invoke(cli, ["report", "--json", "--raw"])
+        assert_click_runner_result(result)
+        log = json.loads(result.output)[0]["output_files"][0]
+        assert "\r50%\r" in log["content"]
+        assert log["truncated"] is False
+
+
+@patch("subprocess.check_output")
+def test_squeue_array_jobs(mock_check_output):
+    from gridtk.manager import job_statuses_from_squeue
+
+    mock_check_output.return_value = (
+        "7_1|RUNNING|None|n1|0:10|2026-01-31T12:00:00\n"
+        "7_[2-3]|PENDING|(Resources)||0:00|N/A\n"
+    )
+    status = job_statuses_from_squeue([7])
+    assert list(status) == [7]
+    assert status[7]["state"]["current"] == ["RUNNING"]
+    assert status[7]["time"]["elapsed"] == 10
+
+
+def test_read_log(tmp_path):
+    from gridtk.tools import read_log
+
+    path = tmp_path / "log.out"
+    path.write_bytes(b"a\r\nb\rc\r\n\rd\re\r\nlast")
+    assert read_log(path) == ("a\nc\ne\nlast\n", 4)
+    assert read_log(path, tail=1) == ("last\n", 4)
+    assert read_log(path, tail=0) == ("", 4)
+    assert read_log(path, collapse_cr=False, tail=2) == ("\rd\re\r\nlast\n", 4)
+
+
+@pytest.mark.parametrize(
+    ("duration", "seconds"),
+    [
+        ("0:00", 0),
+        ("1:02", 62),
+        ("1:02:03", 3723),
+        ("2-01:00:00", 176400),
+        ("N/A", None),
+        ("INVALID", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_parse_slurm_duration(duration, seconds):
+    from gridtk.tools import format_duration, parse_slurm_duration
+
+    assert parse_slurm_duration(duration) == seconds
+    if seconds is not None:
+        assert parse_slurm_duration(format_duration(seconds)) == seconds
+
+
+def test_compact_ranges():
+    from gridtk.tools import compact_ranges
+
+    assert compact_ranges([0, 1, 2, 5, 7, 8]) == "0-2,5,7-8"
+    assert compact_ranges([]) == ""
+
+
+def test_select_columns():
+    from gridtk.listing import select_columns
+
+    def keys(*args):
+        return [c.key for c in select_columns(*args)[0]]
+
+    assert keys(0) == ["id", "slurm_id", "state", "name", "nodes", "elapsed"]
+    assert keys(0, "name,ID") == ["name", "id"]
+    assert keys(1, "-deps,+command,reason")[-3:] == ["output", "command", "reason"]
+    assert keys(0, "+job-id") == keys(0)
+    with pytest.raises(ValueError, match="Unknown column 'nope'"):
+        select_columns(0, "nope")
+
+
+def test_fit_to_width():
+    from gridtk.listing import COLUMNS, fit_to_width
+
+    columns = [COLUMNS[k] for k in ("id", "name", "output", "command")]
+    row = ["1", "a-long-job-name", "logs/a-long-job-name.12345.out", "x" * 40]
+    # widths: 2 (the header "ID") + 15 + 30 + 40 + 3 * 2 separators = 93
+    assert fit_to_width([row], columns, 93) == [row]
+    # the command is cut first...
+    fitted = fit_to_width([row], columns, 80)[0]
+    assert fitted[:3] == row[:3]
+    assert fitted[3] == "x" * 26 + "…"
+    # ...then the output (from its start, to keep the Slurm job id), then the name
+    # (there are no nodes here)
+    fitted = fit_to_width([row], columns, 50)[0]
+    assert fitted[3] == "x" * 15 + "…"
+    assert fitted[2] == "…-name.12345.out"
+    assert fitted[1] == "a-long-jo…"
+    # fixed columns are never cut
+    assert fit_to_width([row], columns, 10)[0][0] == "1"
+
+
+def test_render_table():
+    from gridtk.listing import render_table, select_columns, summary_line
+    from gridtk.models import Job
+
+    jobs = [
+        Job(
+            id=1,
+            name="train",
+            command=[],
+            is_array_job=True,
+            state="FAILED",
+            exit_code="1",
+            array_task_ids=[0, 1, 2, 5],
+            grid_id=10,
+            nodes="n1",
+        ),
+        Job(
+            id=2,
+            name="eval",
+            command=[],
+            is_array_job=False,
+            state="COMPLETED",
+            exit_code="0",
+            grid_id=11,
+            nodes="n2",
+        ),
+    ]
+    columns, _ = select_columns(0, "id,state,name")
+    lines = render_table(jobs, columns).splitlines()
+    assert lines[2].split() == ["1", "FAILED", "(1)", "train[0-2,5]"]
+    assert lines[3].split() == ["2", "COMPLETED", "eval"]
+    colored = render_table(jobs, columns, color=True)
+    assert "\x1b[31mFAILED (1)" in colored
+    assert "\x1b[32mCOMPLETED" in colored
+    assert summary_line(jobs) == "2 jobs: 1 completed, 1 failed"
 
 
 @patch("subprocess.check_output")
@@ -789,6 +997,25 @@ def test_list_json(mock_check_output, runner):
         assert "dependencies" in job
         assert "command" in job
         assert "output" in job
+        # details not shown in the table
+        assert job["reason"] == "Unassigned"
+        assert job["finished"] is False
+        assert job["outputs"] == ["logs/gridtk.9876543.out"]
+        assert job["array_task_ids"] is None
+        assert job["git_guard"] is None
+        assert job["elapsed_seconds"] is None
+        assert job["start"] is None
+
+        # select keys
+        result = runner.invoke(cli, ["list", "--json", "-o", "id,state,exit_code"])
+        assert_click_runner_result(result)
+        assert json.loads(result.output) == [
+            {"job_id": 1, "state": "PENDING", "exit_code": "0"}
+        ]
+        result = runner.invoke(cli, ["list", "--json", "-o", "-command"])
+        assert_click_runner_result(result)
+        assert "command" not in json.loads(result.output)[0]
+        assert "outputs" in json.loads(result.output)[0]
 
 
 @patch("subprocess.check_output")

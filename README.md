@@ -92,18 +92,20 @@ or setting default values using environment variables such as
 Use the `gridtk list` command to view the status of your jobs:
 ```bash
 $ gridtk list
-  job-id    grid-id  nodes    state        job-name    output                  dependencies    command
---------  ---------  -------  -----------  ----------  ----------------------  --------------  --------------------
-       1     136132  None     PENDING (0)  gridtk      logs/gridtk.136132.out                  gridtk submit job.sh
+ID   SLURM  STATE    NAME    NODES
+--  ------  -------  ------  ----------
+ 1  136132  PENDING  gridtk  (Priority)
+1 job: 1 pending
 ```
 `gridtk list` will only show jobs that are submitted using `gridtk submit` **in the current folder**.
 You can see the submitted job got a local job id of `1` and a slurm job id of
 `136132`.
-It is in the `PENDING` state and its name is `gridtk` by default (it is
-recommended to give a meaningful name using the `gridtk submit --job-name`
-option).
+It is in the `PENDING` state, waiting for its turn (`Priority`), and its name
+is `gridtk` by default (it is recommended to give a meaningful name using the
+`gridtk submit --job-name` option).
 The output files are written to the `logs/` directory by default (you may change
-the directory with the `gridtk --logs-dir` option).
+the directory with the `gridtk --logs-dir` option); `gridtk list -v` shows them
+(see [Adjusting `gridtk list` Output](#adjusting-gridtk-list-output)).
 GridTK manages the log files for you, so you don't have to worry about knowing
 where they are stored or cleaning them up.
 
@@ -133,9 +135,10 @@ Stopped job 1 with slurm id 136132
 Stopped jobs will be still available in the job list:
 ```bash
 $ gridtk list
-  job-id    slurm-id  nodes    state          job-name    output                  dependencies    command
---------  ----------  -------  -------------  ----------  ----------------------  --------------  --------------------
-       1      136137  None     CANCELLED (0)  gridtk      logs/gridtk.136137.out                  gridtk submit job.sh
+ID   SLURM  STATE      NAME
+--  ------  ---------  ------
+ 1  136137  CANCELLED  gridtk
+1 job: 1 cancelled
 ```
 and can be resubmitted using the `gridtk resubmit` command (more details on
 resubmit further down) and you can still view their output using the `gridtk report`
@@ -161,9 +164,10 @@ $ gridtk resubmit -j 1
 Resubmitted job 1
 
 $ gridtk list
-  job-id    slurm-id  nodes    state        job-name    output                  dependencies    command
---------  ----------  -------  -----------  ----------  ----------------------  --------------  --------------------
-       1      136140  None     PENDING (0)  gridtk      logs/gridtk.136140.out                  gridtk submit job.sh
+ID   SLURM  STATE    NAME    NODES
+--  ------  -------  ------  ----------
+ 1  136140  PENDING  gridtk  (Priority)
+1 job: 1 pending
 ```
 Notice how the resubmitted job got a new slurm job id of `136140`.
 
@@ -185,11 +189,12 @@ $ gridtk submit --job-name=gridtk-no-script --- echo 'Hello, GridTK!'
 ```
 This syntax is unique to `gridtk submit` and is not supported by `sbatch`.
 ```bash
-$ gridtk list
-  job-id    slurm-id  nodes    state        job-name          output                            dependencies    command
---------  ----------  -------  -----------  ----------------  --------------------------------  --------------  ------------------------------------
-       1      136140  None     PENDING (0)  gridtk            logs/gridtk.136140.out                            gridtk submit job.sh
-       2      136142  None     PENDING (0)  gridtk-no-script  logs/gridtk-no-script.136142.out                  gridtk submit --- echo Hello, GridTK!
+$ gridtk list -o id,state,name,command
+ID  STATE    NAME              COMMAND
+--  -------  ----------------  -------------------------------------
+ 1  PENDING  gridtk            gridtk submit job.sh
+ 2  PENDING  gridtk-no-script  gridtk submit --- echo Hello, GridTK!
+2 jobs: 2 pending
 ```
 What happens is that `gridtk submit` creates a temporary script with the command to run and
 submits it to slurm. The temporary script is deleted after the job is submitted. The content of
@@ -355,46 +360,75 @@ eval "$(_GRIDTK_COMPLETE=zsh_source gridtk)"
 
 ### Adjusting `gridtk list` Output
 
-By default, `gridtk list` outputs a table which migh not fit the terminal width.
-You can adjust the output using the `--wrap` and `--truncate` flags. The `--wrap`
-flag wraps the output to fit the terminal width, while the `--truncate` flag
-truncates the output to fit the terminal width.
+By default, `gridtk list` shows a compact overview of the jobs: their local and
+slurm ids, state (with the exit code of failed jobs), name, nodes (or why they
+are pending) and elapsed time.  Columns that are empty for all jobs are hidden.
+On a terminal, long values are truncated so the table fits its width, states
+are coloured (unless `NO_COLOR` is set), and a summary line follows the table.
+When the output is piped, values are never truncated.
 
 ```bash
 $ gridtk list
-  job-id    slurm-id  nodes    state          job-name    output                  dependencies    command
---------  ----------  -------  -------------  ----------  ----------------------  --------------  --------------------
-       1      506994  hcne01   COMPLETED (0)  gridtk      logs/gridtk.506994.out                  gridtk submit job.sh
-
-$ gridtk list --wrap  # --wrap or -w
-  job-id    slurm-  nodes    state     job-name    output             depende    command
-                id                                                    ncies
---------  --------  -------  --------  ----------  -----------------  ---------  -------------
-       1    506994  hcne0    COMPLETE  gridtk      logs/gridtk.50699             gridtk submit
-                    1        D (0)                 4.out                         job.sh
-
-$ gridtk list --truncate # --truncate or -t
-  job-id    slur..  nodes    state    job-name    output            depe..    command
---------  --------  -------  -------  ----------  ----------------  --------  -------------
-       1    506994  hc..     COMPL..  gridtk      logs/gridtk.50..            gridtk subm..
+ID    SLURM  STATE       NAME        NODES   ELAPSED
+--  -------  ----------  ----------  ------  -------
+ 1  3800685  COMPLETED   hello       hcne01     0:00
+ 2  3800686  COMPLETED   train[0-3]  hcne01     0:20
+ 3  3800692  FAILED (3)  fails       hcne01     0:00
+3 jobs: 2 completed, 1 failed
 ```
 
-For machine-readable output (useful for scripting and AI agents), use `--json`:
+Each `-v` shows more columns: `-v` adds the dependencies, exit code and log
+file, and `-vv` the start time, array tasks, git guard and command.  Choose
+columns with `-o`/`--columns`, either exactly (`-o id,state,name`) or relative
+to the default ones (`-o +output,-nodes`); see `gridtk list --help` for all
+columns.  `--truncate`/`--no-truncate` (`-t`/`-T`) force or disable truncation,
+`--summary`/`--no-summary` the summary line, and `--no-header` omits the header.
+
+For shell scripts, `-q`/`--quiet` prints only job ids:
 ```bash
-$ gridtk list --json
-[
-  {
-    "job_id": 1,
-    "slurm_id": 506994,
-    "nodes": "hcne01",
-    "state": "COMPLETED",
-    "exit_code": "0",
-    "name": "gridtk",
-    "output": "logs/gridtk.506994.out",
-    "dependencies": [],
-    "command": "gridtk submit job.sh"
-  }
-]
+$ gridtk resubmit -j $(gridtk list -s F -q | paste -sd,)
+```
+
+For machine-readable output (useful for scripting and AI agents), use `--json`.
+It always includes all the details of each job, unless keys are selected with
+`-o`:
+```bash
+$ gridtk list --json -o id,state,exit_code
+[{"job_id": 1, "state": "COMPLETED", "exit_code": "0"}, ...]
+
+$ gridtk list --json | jq '.[0]'
+{
+  "job_id": 1,
+  "slurm_id": 3800685,
+  "state": "COMPLETED",
+  "name": "hello",
+  "nodes": "hcne01",
+  "elapsed_seconds": 0,
+  "dependencies": [],
+  "exit_code": "0",
+  "output": "logs/hello.3800685.out",
+  "start": "2026-10-07T17:19:02",
+  "array_task_ids": null,
+  "git_guard": null,
+  "command": "gridtk submit --- echo hello",
+  "reason": null,
+  "finished": true,
+  "outputs": ["logs/hello.3800685.out"]
+}
+```
+The elapsed and start times and the pending reason are read from Slurm on each
+call and are `null` when the job database is read-only.
+
+`gridtk report --tail N` (`-n N`) shows only the last N lines of each log, and
+lines redrawn by progress bars (e.g. tqdm) only show their last update, which
+keeps reports short (use `--raw` for the logs as they are):
+```bash
+$ gridtk report -j 4 --tail 2
+...
+Output file: logs/train.3800691.out
+[last 2 of 1532 lines]
+epoch 10: 100%|██████████| 500/500 [01:02<00:00, 8.01it/s]
+done
 ```
 
 The `--json` flag is also available on `submit` and `report`:

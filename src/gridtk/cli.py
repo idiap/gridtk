@@ -4,17 +4,21 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import json
+import os
 import pydoc
 import shutil
+import sys
 import tempfile
 
-from collections import defaultdict
 from pathlib import Path
 
 import click
 
 from . import guard
+from .listing import column_keys
 from .tools import add_default_dep_type
+
+COLUMN_KEYS = column_keys()
 
 
 class CustomGroup(click.Group):
@@ -487,28 +491,73 @@ def resubmit(
         session.commit()
 
 
-@cli.command(name="list")
+@cli.command(
+    name="list",
+    epilog="""\b
+Examples:
+gridtk list                      # compact overview
+gridtk list -vv                  # all the details
+gridtk list -o +output,-nodes    # add/remove columns
+gridtk list -o id,state,name     # exactly these columns
+gridtk list -s F -q              # ids of failed jobs, one per line
+gridtk list --json -o id,state,exit_code
+""",
+)
 @job_filters
 @click.option(
-    "-w",
-    "--wrap",
-    is_flag=True,
-    default=False,
-    help="Wrap the output to the terminal width",
+    "-v",
+    "--verbose",
+    "verbosity",
+    count=True,
+    help="Show more columns (repeat for even more).",
 )
 @click.option(
-    "-t",
-    "--truncate",
+    "-o",
+    "--columns",
+    "columns_spec",
+    metavar="COLS",
+    help=(
+        "Comma-separated columns to show, in order.  Prefix them with + or - to "
+        "add them to or remove them from the default ones (e.g. '+output,-nodes'). "
+        "With --json, selects the keys of each job.  Columns: "
+        + ", ".join(COLUMN_KEYS)
+        + "."
+    ),
+)
+@click.option(
+    "-t/-T",
+    "--truncate/--no-truncate",
+    default=None,
+    help=(
+        "Truncate long values so the table fits the terminal.  By default, "
+        "values are truncated only when the output is a terminal."
+    ),
+    show_default=False,
+)
+@click.option("-w", "--wrap", is_flag=True, default=False, hidden=True)
+@click.option(
+    "--summary/--no-summary",
+    default=None,
+    help=(
+        "Show a summary line with the number of jobs in each state (by default, "
+        "only when the output is a terminal)."
+    ),
+    show_default=False,
+)
+@click.option("--no-header", is_flag=True, default=False, help="Omit the header line.")
+@click.option(
+    "-q",
+    "--quiet",
     is_flag=True,
     default=False,
-    help="Truncate the output to the terminal width",
+    help="Only print the job ids, one per line.",
 )
 @click.option(
     "--json",
     "output_json",
     is_flag=True,
     default=False,
-    help="Output in JSON format",
+    help="Output in JSON format, with all details of each job (see --columns).",
 )
 @click.pass_context
 def list_jobs(
@@ -517,23 +566,41 @@ def list_jobs(
     states: list[str],
     names: list[str],
     dependents: bool,
+    verbosity: int,
+    columns_spec: str | None,
+    truncate: bool | None,
     wrap: bool,
-    truncate: bool,
+    summary: bool | None,
+    no_header: bool,
+    quiet: bool,
     output_json: bool,
 ):
     """List jobs in the queue, similar to sacct and squeue."""
+    from . import listing
     from .manager import JobManager
 
-    if output_json and (wrap or truncate):
+    if output_json and (truncate or wrap or no_header or quiet):
         raise click.UsageError(
-            "--json is mutually exclusive with --wrap and --truncate"
+            "--json is mutually exclusive with --truncate, --no-header and --quiet"
         )
+    if wrap:
+        click.echo(
+            "Warning: --wrap is deprecated and will be removed in a future "
+            "version; use --no-truncate to show full values.",
+            err=True,
+        )
+        truncate = False
 
-    def truncate_str(content: str, max_width: int) -> str:
-        if len(content) > max_width:
-            return content[: max_width - 3] + ".."
-        return content
+    try:
+        if output_json:
+            # JSON carries all details, unless columns are selected
+            columns, _ = listing.select_columns(len(listing.COLUMNS), columns_spec)
+        else:
+            columns, requested = listing.select_columns(verbosity, columns_spec)
+    except ValueError as e:
+        raise click.BadParameter(str(e), param_hint="'-o' / '--columns'") from e
 
+    tty = sys.stdout.isatty()
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
         jobs = job_manager.list_jobs(
@@ -541,101 +608,36 @@ def list_jobs(
         )
 
         if output_json:
-            jobs_list = []
-            for job in jobs:
-                output = job.output_files[0].resolve()
-                try:
-                    output = output.relative_to(Path.cwd().resolve())
-                except ValueError:
-                    pass
-                jobs_list.append(
-                    {
-                        "job_id": job.id,
-                        "slurm_id": job.grid_id,
-                        "nodes": job.nodes,
-                        "state": job.state,
-                        "exit_code": job.exit_code,
-                        "name": job.name,
-                        "output": str(output),
-                        "dependencies": [dep_job for dep_job in job.dependencies_ids],
-                        "command": "gridtk submit " + " ".join(job.command),
-                    }
-                )
-            click.echo(json.dumps(jobs_list, indent=2))
-            session.commit()
-            return
-
-        from tabulate import tabulate
-
-        table: dict[str, list[str | int | Path | None]] = defaultdict(list)
-        for job in jobs:
-            table["job-id"].append(job.id)
-            table["slurm-id"].append(job.grid_id)
-            table["nodes"].append(str(job.nodes))
-            table["state"].append(f"{job.state} ({job.exit_code})")
-            table["job-name"].append(job.name)
-            output = job.output_files[0].resolve()
-            try:
-                output = output.relative_to(Path.cwd().resolve())
-            except ValueError:
-                pass
-
-            table["output"].append(output)
-            table["dependencies"].append(
-                ",".join([str(dep_job) for dep_job in job.dependencies_ids])
-            )
-            table["command"].append("gridtk submit " + " ".join(job.command))
-
-        maxcolwidths = None
-        full_output = not wrap and not truncate
-        if not full_output and table:
-            minimum_column_width = 7
-            width_of_spaces = (len(table) - 1) * 2
-            terminal_width = max(
-                len(table) * minimum_column_width + width_of_spaces,
-                shutil.get_terminal_size().columns,
-            )
-            max_widths = {
-                "job-id": minimum_column_width,
-                "slurm-id": minimum_column_width,
-                "nodes": 0.1,
-                "state": 0.15,
-                "job-name": 0.2,
-                "output": 0.3,
-                "dependencies": minimum_column_width,
-                "command": 0.25,
-            }
-            left_over_width = (
-                terminal_width
-                - width_of_spaces
-                - sum(v for v in max_widths.values() if isinstance(v, int))
-            )
-            for key, value in max_widths.items():
-                if isinstance(value, float):
-                    max_widths[key] = int(left_over_width * value)
-            maxcolwidths = [int(max_widths[key]) for key in table]
-            if truncate:
-                for key, rows in table.items():
-                    table[key] = [
-                        truncate_str(str(row), int(max_widths[key])) for row in rows
-                    ]
-                # truncate column names
-                table = {
-                    truncate_str(key, int(max_widths[key])): value
-                    for key, value in table.items()
-                }
-
-        if table:
             click.echo(
-                tabulate(
-                    table,
-                    headers="keys",
-                    maxcolwidths=maxcolwidths,
-                    maxheadercolwidths=maxcolwidths,
+                json.dumps(
+                    [listing.job_to_dict(job, columns) for job in jobs],
+                    indent=2 if tty else None,
                 )
             )
-        else:
+        elif quiet:
+            for job in jobs:
+                click.echo(job.id)
+        elif not jobs:
             click.echo(no_jobs_message("found"))
+        else:
+            utf8 = (sys.stdout.encoding or "").lower().replace("-", "") == "utf8"
+            click.echo(
+                listing.render_table(
+                    jobs,
+                    columns,
+                    requested=requested,
+                    width=(
+                        shutil.get_terminal_size().columns
+                        if (tty if truncate is None else truncate)
+                        else None
+                    ),
+                    color=tty and "NO_COLOR" not in os.environ,
+                    header=not no_header,
+                    ellipsis="…" if utf8 else "..",
+                )
+            )
+            if tty if summary is None else summary:
+                click.echo(listing.summary_line(jobs))
         session.commit()
 
 
@@ -728,15 +730,11 @@ def wait(ctx, job_ids, states, names, dependents, interval):
                 return
 
             # Show progress with state breakdown
-            from collections import Counter
+            from .listing import state_breakdown
 
             active = [j for j in jobs if j.state not in FINISHED_STATES]
-            counts = Counter(j.state for j in active)
-            breakdown = ", ".join(
-                f"{n} {(s or 'UNKNOWN').lower()}" for s, n in sorted(counts.items())
-            )
             click.echo(
-                f"Waiting for {len(active)} job(s): {breakdown}"
+                f"Waiting for {len(active)} job(s): {state_breakdown(active)}"
                 f" (checking every {interval}s)"
             )
             session.commit()
@@ -753,6 +751,22 @@ def wait(ctx, job_ids, states, names, dependents, interval):
     help="Array index to see the logs for only one item of an array job.",
 )
 @click.option(
+    "-n",
+    "--tail",
+    type=click.IntRange(min=0),
+    metavar="N",
+    help="Only show the last N lines of each log.",
+)
+@click.option(
+    "--raw",
+    is_flag=True,
+    default=False,
+    help=(
+        "Show logs as they are.  By default, lines redrawn with carriage returns "
+        "(e.g. progress bars) only show their last update."
+    ),
+)
+@click.option(
     "--json",
     "output_json",
     is_flag=True,
@@ -767,10 +781,39 @@ def report(
     names: list[str],
     dependents: bool,
     array_idx: str | None,
+    tail: int | None,
+    raw: bool,
     output_json: bool,
 ):
     """Report on jobs in the queue."""
     from .manager import JobManager
+    from .tools import read_log
+
+    def log_entry(path: Path) -> dict:
+        """Read a log, as reported in JSON."""
+        if not path.exists():
+            return {"path": str(path), "content": None, "total_lines": None}
+        content, total_lines = read_log(path, tail=tail, collapse_cr=not raw)
+        return {
+            "path": str(path),
+            "content": content,
+            "total_lines": total_lines,
+            "truncated": tail is not None and total_lines > tail,
+        }
+
+    def log_files(job) -> list[tuple[str, Path]]:
+        """Return the output and (if different) error files of a job, with their kind."""
+        output_files, error_files = job.output_files, job.error_files
+        if array_idx is not None:
+            real_array_idx = (job.array_task_ids or []).index(int(array_idx))
+            output_files = output_files[real_array_idx : real_array_idx + 1]
+            error_files = error_files[real_array_idx : real_array_idx + 1]
+        files = []
+        for output, error in zip(output_files, error_files):
+            files.append(("Output", output))
+            if error != output:
+                files.append(("Error", error))
+        return files
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
@@ -790,37 +833,6 @@ def report(
             for job in jobs:
                 with tempfile.NamedTemporaryFile(mode="w+t", suffix=".sh") as tmpfile:
                     command = job.submitted_command(tmpfile, session=session)
-                output_files_list = []
-                files = job.output_files
-                error_files = job.error_files
-                if array_idx is not None:
-                    real_array_idx = (job.array_task_ids or []).index(int(array_idx))
-                    files = files[real_array_idx : real_array_idx + 1]
-                    error_files = error_files[real_array_idx : real_array_idx + 1]
-                for out_file, err_file in zip(files, error_files):
-                    if out_file.exists():
-                        output_files_list.append(
-                            {
-                                "path": str(out_file),
-                                "content": out_file.open().read(),
-                            }
-                        )
-                    else:
-                        output_files_list.append(
-                            {"path": str(out_file), "content": None}
-                        )
-                    if err_file != out_file:
-                        if err_file.exists():
-                            output_files_list.append(
-                                {
-                                    "path": str(err_file),
-                                    "content": err_file.open().read(),
-                                }
-                            )
-                        else:
-                            output_files_list.append(
-                                {"path": str(err_file), "content": None}
-                            )
                 report_list.append(
                     {
                         "job_id": job.id,
@@ -832,7 +844,7 @@ def report(
                         "git_guard": (
                             job.git_guard.to_dict() if job.git_guard else None
                         ),
-                        "output_files": output_files_list,
+                        "output_files": [log_entry(f) for _, f in log_files(job)],
                     }
                 )
             click.echo(json.dumps(report_list, indent=2))
@@ -853,19 +865,14 @@ def report(
                     report_text += (
                         f"Content of the temporary script:\n{job.command_in_bash}\n"
                     )
-            output_files, error_files = job.output_files, job.error_files
-            if array_idx is not None:
-                real_array_idx = (job.array_task_ids or []).index(int(array_idx))
-                output_files = output_files[real_array_idx : real_array_idx + 1]
-                error_files = error_files[real_array_idx : real_array_idx + 1]
-            for output, error in zip(output_files, error_files):
-                report_text += f"Output file: {output}\n"
-                if output.exists():
-                    report_text += output.open().read() + "\n\n"
-                if error != output:
-                    report_text += f"Error file: {error}\n"
-                    if error.exists():
-                        report_text += error.open().read() + "\n\n"
+            for kind, path in log_files(job):
+                report_text += f"{kind} file: {path}\n"
+                entry = log_entry(path)
+                if entry["content"] is None:
+                    continue
+                if entry["truncated"]:
+                    report_text += f"[last {tail} of {entry['total_lines']} lines]\n"
+                report_text += entry["content"] + "\n"
             pydoc.pager(report_text)
         session.commit()
 
