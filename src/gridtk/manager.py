@@ -36,7 +36,12 @@ from sqlalchemy.orm import Session
 
 from . import guard
 from .models import FINISHED_STATES, Base, Job, JobDependency
-from .tools import job_ids_from_dep_str, parse_array_indexes, parse_slurm_duration
+from .tools import (
+    UnknownJobIdsError,
+    job_ids_from_dep_str,
+    parse_array_indexes,
+    parse_slurm_duration,
+)
 
 
 def parse_scontrol_output(output: str) -> dict[str, Any]:
@@ -283,7 +288,13 @@ class JobManager:
         array
             Job array specification, if any.
         dependencies
-            Dependency specification with local job ids, if any.
+            Dependency specification with local job ids (and slurm ids prefixed
+            with ``slurm:``), if any.
+
+        Raises
+        ------
+        UnknownJobIdsError
+            If local job ids of ``dependencies`` are not in the database.
         git_guard
             Path inside the git repository the job must be pinned to, or ``None``.
             Requires the ``---`` form of ``command``.
@@ -407,6 +418,13 @@ dependencies: {dependencies}"""
 
     def resubmit_jobs(self, **kwargs):
         jobs = self.list_jobs(**kwargs)
+        # fail before cancelling any job
+        for job in jobs:
+            try:
+                job.check_dependencies(self.session)
+            except UnknownJobIdsError as e:
+                e.dependent = job.id
+                raise
         for job in jobs:
             job.cancel(delete_logs=True)
             job.submit(session=self.session)

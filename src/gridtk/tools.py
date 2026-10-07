@@ -41,17 +41,33 @@ def parse_array_indexes(indexes_str: str) -> list[int]:
     return result
 
 
+_DEP_JOB_ID = re.compile(r"(slurm:)?(\d+)(\+\d+)?")
+"""A job id in a dependency string: a local id, or a slurm id prefixed with
+``slurm:``, optionally followed by ``+<time>`` (for ``after``)."""
+
+
+class UnknownJobIdsError(ValueError):
+    """Some local job ids of a dependency string are not in the job database."""
+
+    def __init__(self, job_ids: Iterable[int]) -> None:
+        self.job_ids = list(job_ids)
+        """The unknown job ids, in order of appearance."""
+        self.dependent: int | None = None
+        """The local id of the job that depends on them, if it is in the database."""
+        super().__init__(
+            f"job(s) {', '.join(map(str, self.job_ids))} not found in the job database"
+        )
+
+
 def job_ids_from_dep_str(dependency_string: str | None) -> list[int]:
-    """Extract job IDs from a dependency string."""
+    """Extract the local job IDs from a dependency string (not ``slurm:<id>``)."""
     if not dependency_string:
         return []
-    # Regular expression to match job IDs with optional +time
-    dep_job_id_pattern = re.compile(r"(\d+)(?:\+\d+)?")
-
-    # Find all matches in the dependency string
-    job_ids = dep_job_id_pattern.findall(dependency_string)
-
-    return list(map(int, job_ids))
+    return [
+        int(match.group(2))
+        for match in _DEP_JOB_ID.finditer(dependency_string)
+        if not match.group(1)
+    ]
 
 
 def add_default_dep_type(dependency_string: str | None) -> str | None:
@@ -65,26 +81,40 @@ def add_default_dep_type(dependency_string: str | None) -> str | None:
         return dependency_string
     # keep the "," (all of) and "?" (any of) separators
     specs = re.split(r"([,?])", dependency_string)
-    return "".join(f"afterany:{spec}" if spec[:1].isdigit() else spec for spec in specs)
+    return "".join(
+        f"afterany:{spec}" if spec[:1].isdigit() or spec.startswith("slurm:") else spec
+        for spec in specs
+    )
 
 
 def replace_job_ids_in_dep_str(
     dependency_string: str | None, replacements: Mapping[int, int]
 ) -> str | None:
-    """Replace each job ID in a dependency string with its ID in ``replacements``."""
+    """Replace each local job ID in a dependency string with its ID in
+    ``replacements``, and each ``slurm:<id>`` with ``<id>``.
+
+    Raises
+    ------
+    UnknownJobIdsError
+        If local job ids are not in ``replacements``.
+    """
     if not dependency_string:
         return dependency_string
-    # Regular expression to match job IDs with optional +time
-    job_id_pattern = re.compile(r"(\d+)(\+\d+)?")
+    missing = [
+        job_id
+        for job_id in dict.fromkeys(job_ids_from_dep_str(dependency_string))
+        if job_id not in replacements
+    ]
+    if missing:
+        raise UnknownJobIdsError(missing)
 
     def replacement_func(match):
-        job_id = int(match.group(1))
-        if job_id not in replacements:
-            raise ValueError(f"No replacement for job id {job_id}")
-        return f"{replacements[job_id]}{match.group(2) or ''}"
+        job_id = int(match.group(2))
+        if not match.group(1):
+            job_id = replacements[job_id]
+        return f"{job_id}{match.group(3) or ''}"
 
-    # Substitute all job IDs in the dependency string
-    return job_id_pattern.sub(replacement_func, dependency_string)
+    return _DEP_JOB_ID.sub(replacement_func, dependency_string)
 
 
 def parse_slurm_duration(duration: str | None) -> int | None:

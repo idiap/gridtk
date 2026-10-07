@@ -16,7 +16,7 @@ import click
 
 from . import guard
 from .listing import column_keys
-from .tools import add_default_dep_type
+from .tools import UnknownJobIdsError, add_default_dep_type
 
 COLUMN_KEYS = column_keys()
 
@@ -89,6 +89,20 @@ def parse_states(states: str) -> list[str]:
             )
         final_states.append(state)
     return final_states
+
+
+def unknown_job_ids_message(error: UnknownJobIdsError, database: Path) -> str:
+    """Explain that dependencies refer to jobs gridtk does not know."""
+    ids = ", ".join(map(str, error.job_ids))
+    if error.dependent is not None:
+        return (
+            f"job {error.dependent} depends on job(s) {ids}, which are no longer "
+            f"in {database}"
+        )
+    return (
+        f"job(s) {ids} not found in {database} (--dependency takes local ids; "
+        f"write slurm ids as slurm:<id>, e.g. afterok:slurm:{error.job_ids[0]})"
+    )
 
 
 def job_ids_callback(ctx, param, value):
@@ -193,14 +207,9 @@ def cli(ctx, database, logs_dir):
     except RuntimeError as e:
         raise click.ClickException(str(e)) from e
     ctx.meta["job_manager"] = job_manager
-
-
-@cli.result_callback()
-def process_result(result, **kwargs):
-    """Clean up empty databases and dispose the job manager."""
-    ctx = click.get_current_context()
-    job_manager = ctx.meta.pop("job_manager")
-    job_manager.cleanup_empty_database()
+    # also when the command fails (e.g. submit with an unknown dependency), so
+    # it leaves no empty database behind
+    ctx.call_on_close(job_manager.cleanup_empty_database)
 
 
 @cli.command(
@@ -233,7 +242,8 @@ gridtk submit --- python my_code.py
     help=(
         "Depend on other jobs that are already in the list of gridtk, as in sbatch "
         "but with local job ids; ids given without a type (e.g. 5 or 5:6) mean "
-        "afterany."
+        "afterany. Prefix slurm ids of jobs submitted outside gridtk with slurm: "
+        "(e.g. afterok:5:slurm:3793602)."
     ),
 )
 @click.option(
@@ -436,13 +446,18 @@ def submit(
                     f"Repeated jobs can only have one dependency type (no `,` or `?` in --dependency) but got {dependencies}"
                 )
         for _ in range(repeat):
-            job = job_manager.submit_job(
-                name=job_name,
-                command=command,
-                array=array,
-                dependencies=dependencies,
-                git_guard=git_repo,
-            )
+            try:
+                job = job_manager.submit_job(
+                    name=job_name,
+                    command=command,
+                    array=array,
+                    dependencies=dependencies,
+                    git_guard=git_repo,
+                )
+            except UnknownJobIdsError as e:
+                raise click.UsageError(
+                    unknown_job_ids_message(e, job_manager.database)
+                ) from e
             if output_json:
                 click.echo(
                     json.dumps(
@@ -476,9 +491,14 @@ def resubmit(
 
     job_manager: JobManager = ctx.meta["job_manager"]
     with job_manager as session:
-        jobs = job_manager.resubmit_jobs(
-            job_ids=job_ids, states=states, names=names, dependents=dependents
-        )
+        try:
+            jobs = job_manager.resubmit_jobs(
+                job_ids=job_ids, states=states, names=names, dependents=dependents
+            )
+        except UnknownJobIdsError as e:
+            raise click.ClickException(
+                unknown_job_ids_message(e, job_manager.database)
+            ) from e
         if not jobs:
             click.echo(
                 no_jobs_message(

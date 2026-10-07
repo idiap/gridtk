@@ -136,6 +136,8 @@ def test_parse_array_indexes():
         ("5,afterok:6", "afterany:5,afterok:6"),
         ("afterok:5?6", "afterok:5?afterany:6"),
         ("singleton", "singleton"),
+        ("slurm:5:6", "afterany:slurm:5:6"),
+        ("afterok:slurm:5,slurm:6", "afterok:slurm:5,afterany:slurm:6"),
     ],
 )
 def test_add_default_dep_type(dependencies, expected):
@@ -165,6 +167,12 @@ def test_extract_job_ids_from_dep_str():
             [20, 21, 23],
             "after:1020+15:1021+30?afterany:1023",
         ),
+        # slurm ids are kept as they are
+        (
+            "afterok:20:slurm:3793602,after:slurm:5+10",
+            [20],
+            "afterok:1020:3793602,after:5+10",
+        ),
     ]:
         result = job_ids_from_dep_str(dep_str)
         assert result == expected_result
@@ -172,6 +180,15 @@ def test_extract_job_ids_from_dep_str():
             dep_str, {v: v + 1000 for v in result}
         )
         assert replaced_deps == expected_replaced
+
+
+def test_replace_unknown_job_ids():
+    from gridtk.tools import UnknownJobIdsError
+
+    with pytest.raises(UnknownJobIdsError) as error:
+        replace_job_ids_in_dep_str("afterok:1:2:9,afterany:8:9", {1: 1001})
+    assert error.value.job_ids == [2, 9, 8]
+    assert str(error.value) == "job(s) 2, 9, 8 not found in the job database"
 
 
 def assert_click_runner_result(result, exit_code=0, exception_type=None):
@@ -843,7 +860,8 @@ def test_submit_with_dependencies(mock_check_output, runner):
         # what happens if you depend on job that doesn't exist?
         mock_check_output.return_value = _sbatch_output(second_grid_id)
         result = runner.invoke(cli, ["submit", "--dependency", "0", "script.sh"])
-        assert_click_runner_result(result, exit_code=1, exception_type=ValueError)
+        assert_click_runner_result(result, exit_code=2, exception_type=SystemExit)
+        assert "job(s) 0 not found in jobs.sql3" in result.output
 
         # test submit with --repeat 2
         mock_check_output.side_effect = [
@@ -930,6 +948,10 @@ Deleted job 5 with slurm id {third_grid_id + 10}
         ("afterok:2,afterany:1", "afterok:1001,afterany:1000"),
         ("afterok:2?after:1+5", "afterok:1001?after:1000+5"),
         ("afterok:1,afterany:1", "afterok:1000,afterany:1000"),
+        # slurm ids of jobs submitted outside gridtk
+        ("afterok:1:slurm:777", "afterok:1000:777"),
+        ("slurm:777", "afterany:777"),
+        ("after:slurm:777+5?afterok:2", "after:777+5?afterok:1001"),
     ],
 )
 @patch("subprocess.check_output")
@@ -944,6 +966,67 @@ def test_submit_dependency_keeps_order(mock_check_output, runner, dependency, ex
         assert_click_runner_result(result)
         args = mock_check_output.call_args.args[0]
         assert args[args.index("--dependency") + 1] == expected
+
+
+@patch("subprocess.check_output")
+def test_submit_unknown_dependency(mock_check_output, runner):
+    """Unknown local ids are named, nothing is submitted, and slurm ids do not
+    become local dependencies."""
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ["submit", "--dependency", "5", "job.sh"])
+        assert result.exit_code == 2
+        assert not Path("jobs.sql3").exists()  # no empty database left behind
+
+        _submit_job(runner=runner, mock_check_output=mock_check_output, job_id=1000)
+        calls = mock_check_output.call_count
+        result = runner.invoke(
+            cli, ["submit", "--dependency", "afterok:1:3793602,afterany:7", "job.sh"]
+        )
+        assert result.exit_code == 2
+        assert (
+            "job(s) 3793602, 7 not found in jobs.sql3 (--dependency takes local "
+            "ids; write slurm ids as slurm:<id>, e.g. afterok:slurm:3793602)"
+        ) in result.output
+        assert mock_check_output.call_count == calls  # sbatch was not called
+
+        mock_check_output.return_value = _sbatch_output(1001)
+        result = runner.invoke(
+            cli, ["submit", "--dependency", "afterok:1:slurm:3793602", "job.sh"]
+        )
+        assert_click_runner_result(result)
+        mock_check_output.side_effect = _make_side_effect(
+            [_failed_job_sacct_json(1000, 1001)]
+        )
+        result = runner.invoke(cli, ["list", "--json", "-o", "id,deps"])
+        assert_click_runner_result(result)
+        assert json.loads(result.output)[1] == {"job_id": 2, "dependencies": [1]}
+
+
+@patch("subprocess.check_output")
+def test_resubmit_deleted_dependency(mock_check_output, runner):
+    """Resubmitting a job whose dependency was deleted fails before cancelling
+    anything."""
+    with runner.isolated_filesystem():
+        _submit_job(runner=runner, mock_check_output=mock_check_output, job_id=1000)
+        mock_check_output.return_value = _sbatch_output(1001)
+        result = runner.invoke(cli, ["submit", "--dependency", "1", "job.sh"])
+        assert_click_runner_result(result)
+        mock_check_output.side_effect = _make_side_effect(
+            [_failed_job_sacct_json(1000, 1001), ""]  # sacct, scancel
+        )
+        result = runner.invoke(cli, ["delete", "-j", "1"])
+        assert_click_runner_result(result)
+
+        mock_check_output.side_effect = _make_side_effect(
+            [_failed_job_sacct_json(1001)]
+        )
+        result = runner.invoke(cli, ["resubmit", "-j", "2"])
+        assert result.exit_code == 1
+        assert "job 2 depends on job(s) 1, which are no longer in jobs.sql3" in (
+            result.output
+        )
+        commands = [call.args[0][0] for call in mock_check_output.call_args_list]
+        assert commands[-1] == "sacct"  # neither scancel nor sbatch
 
 
 @pytest.mark.parametrize(

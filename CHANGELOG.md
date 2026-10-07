@@ -21,6 +21,9 @@ All notable changes to this project will be documented in this file. See [commit
 * gridtk no longer depends on tabulate
 
 
+* `gridtk submit --dependency` accepts slurm ids of jobs submitted outside gridtk, prefixed with `slurm:` (e.g. `--dependency afterok:1:slurm:3793602`); they are passed to sbatch as they are and are not listed as dependencies by `gridtk list`
+
+
 ### Deprecations
 
 * `gridtk list -w`/`--wrap` is deprecated and will be removed in a future version: it now prints a warning and shows full values, as `--no-truncate` does; tables are no longer wrapped. `-t`/`--truncate` remains, as the override of the new automatic truncation
@@ -28,6 +31,8 @@ All notable changes to this project will be documented in this file. See [commit
 
 ### Bug Fixes
 
+* `gridtk submit --dependency` with ids that are not in the job database (e.g. slurm ids given as local ones) fails with a message naming them, e.g. `job(s) 3793602 not found in jobs.sql3 (--dependency takes local ids; ...)`, instead of a `ValueError` traceback; `gridtk resubmit` of a job whose dependency was deleted fails the same way before cancelling any job, instead of cancelling the jobs and then failing
+* commands that fail (e.g. `gridtk submit` with an unknown dependency) no longer leave an empty job database and logs directory behind
 * array jobs are matched to their `squeue` entries (`<id>_<task>` or `<id>_[<tasks>]`): they were only read from sacct, which lacks the live state of pending and running jobs
 
 ## [4.0.0](https://github.com/idiap/gridtk/compare/v3.2.1...v4.0.0) (2026-10-06)

@@ -248,6 +248,14 @@ need to specify local job ids instead of slurm job ids. Job ids given without a
 dependency type (e.g. `--dependency 1` or `--dependency 1:2`) mean `afterany`, as
 a single id does in `sbatch`.
 
+To depend on jobs submitted outside gridtk, prefix their slurm job ids with
+`slurm:` (each of them, as in `--dependency afterok:1:slurm:3793602:slurm:3793603`).
+Ids that are not in the job database are reported, and nothing is submitted:
+```bash
+$ gridtk submit --dependency afterok:3793602 job.sh
+Error: job(s) 3793602 not found in jobs.sql3 (--dependency takes local ids; write slurm ids as slurm:<id>, e.g. afterok:slurm:3793602)
+```
+
 ### Repeat Jobs
 
 You can submit the same script N times using the `--repeat` flag:

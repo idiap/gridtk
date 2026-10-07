@@ -29,7 +29,11 @@ from sqlalchemy.orm import (
 from sqlalchemy.types import TypeDecorator
 
 from . import guard
-from .tools import job_ids_from_dep_str, replace_job_ids_in_dep_str
+from .tools import (
+    UnknownJobIdsError,
+    job_ids_from_dep_str,
+    replace_job_ids_in_dep_str,
+)
 
 
 # enable foreign key support in sqlite3
@@ -302,6 +306,19 @@ class Job(Base):
             .filter(Job.id.in_(job_ids_from_dep_str(self.dependencies_str)))
             .all()
         )
+
+    def check_dependencies(self, session) -> None:
+        """Raise :class:`~gridtk.tools.UnknownJobIdsError` if jobs this job
+        depends on are not in the database (e.g. they were deleted).
+        """
+        known = {job.id for job in self.get_dependencies_jobs(session)}
+        missing = [
+            job_id
+            for job_id in dict.fromkeys(job_ids_from_dep_str(self.dependencies_str))
+            if job_id not in known
+        ]
+        if missing:
+            raise UnknownJobIdsError(missing)
 
     def submitted_command(self, fh, session):
         command = list(self.command)
