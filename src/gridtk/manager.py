@@ -290,14 +290,14 @@ class JobManager:
         dependencies
             Dependency specification with local job ids (and slurm ids prefixed
             with ``slurm:``), if any.
+        git_guard
+            Path inside the git repository the job must be pinned to, or ``None``.
+            Requires the ``---`` form of ``command``.
 
         Raises
         ------
         UnknownJobIdsError
             If local job ids of ``dependencies`` are not in the database.
-        git_guard
-            Path inside the git repository the job must be pinned to, or ``None``.
-            Requires the ``---`` form of ``command``.
         """
         array_task_ids = None
         if array:
