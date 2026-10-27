@@ -14,15 +14,8 @@ from unittest.mock import patch
 
 import pytest
 
-from click.testing import CliRunner
-
 from gridtk import guard
 from gridtk.cli import cli
-
-
-@pytest.fixture
-def runner():
-    return CliRunner()
 
 
 def _git(repo: Path, *args: str) -> str:
