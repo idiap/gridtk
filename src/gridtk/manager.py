@@ -24,6 +24,7 @@ import shutil
 import subprocess
 
 from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -34,8 +35,13 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from . import guard
-from .models import Base, Job, JobDependency
-from .tools import job_ids_from_dep_str, parse_array_indexes
+from .models import FINISHED_STATES, Base, Job, JobDependency
+from .tools import (
+    UnknownJobIdsError,
+    job_ids_from_dep_str,
+    parse_array_indexes,
+    parse_slurm_duration,
+)
 
 
 def parse_scontrol_output(output: str) -> dict[str, Any]:
@@ -56,7 +62,21 @@ def parse_scontrol_output(output: str) -> dict[str, Any]:
     result["nodes"] = result["NodeList"]
     if result["nodes"] == "(null)":
         result["nodes"] = "None assigned"
+    result["time"] = {
+        "elapsed": parse_slurm_duration(result.get("RunTime")),
+        "start": _timestamp(result.get("StartTime")),
+    }
     return result
+
+
+def _timestamp(value: str | None) -> int | None:
+    """Return the epoch of a Slurm date (``2024-01-31T12:00:00``), or ``None`` if
+    it is not a date (e.g. ``N/A`` or ``Unknown``).
+    """
+    try:
+        return int(datetime.fromisoformat(value or "").timestamp())
+    except ValueError:
+        return None
 
 
 def job_status_from_scontrol(job_id: int) -> dict:
@@ -87,7 +107,7 @@ def job_statuses_from_squeue(grid_ids: list[int]) -> dict[int, dict]:
                 ",".join(str(x) for x in grid_ids),
                 "--noheader",
                 "-o",
-                "%i|%T|%R|%N",
+                "%i|%T|%R|%N|%M|%S",
             ],
             text=True,
             stderr=subprocess.DEVNULL,
@@ -100,37 +120,28 @@ def job_statuses_from_squeue(grid_ids: list[int]) -> dict[int, dict]:
         if len(parts) < 4:
             continue
         try:
-            job_id = int(parts[0])
+            # array jobs are listed as <id>_<task> or <id>_[<tasks>]: the
+            # state of the array is that of its first task listed
+            job_id = int(parts[0].split("_")[0])
         except ValueError:
+            continue
+        if job_id in status:
             continue
         state = parts[1]
         reason = parts[2]
         nodes = parts[3] or "None assigned"
+        elapsed, start = (parts[4:6] + [None, None])[:2]
         # Build a dict compatible with Job.update() (same shape as sacct --json,
         # but squeue does not report exit codes)
         status[job_id] = {
             "state": {"current": [state], "reason": reason},
             "nodes": nodes,
+            "time": {
+                "elapsed": parse_slurm_duration(elapsed),
+                "start": _timestamp(start),
+            },
         }
     return status
-
-
-FINISHED_STATES = frozenset(
-    {
-        "BOOT_FAIL",
-        "CANCELLED",
-        "COMPLETED",
-        "DEADLINE",
-        "FAILED",
-        "NODE_FAIL",
-        "OUT_OF_MEMORY",
-        "PREEMPTED",
-        "REVOKED",
-        "SPECIAL_EXIT",
-        "TIMEOUT",
-    }
-)
-"""Terminal job states, after which Slurm knows the exit code of a job."""
 
 
 def update_job_statuses(grid_ids: Iterable[int]) -> dict[int, dict]:
@@ -277,10 +288,16 @@ class JobManager:
         array
             Job array specification, if any.
         dependencies
-            Dependency specification with local job ids, if any.
+            Dependency specification with local job ids (and slurm ids prefixed
+            with ``slurm:``), if any.
         git_guard
             Path inside the git repository the job must be pinned to, or ``None``.
             Requires the ``---`` form of ``command``.
+
+        Raises
+        ------
+        UnknownJobIdsError
+            If local job ids of ``dependencies`` are not in the database.
         """
         array_task_ids = None
         if array:
@@ -332,10 +349,12 @@ dependencies: {dependencies}"""
             ) from e
         return job
 
-    def update_jobs(self) -> None:
-        """Update the status of all jobs."""
+    def update_jobs(self) -> dict[int, dict]:
+        """Update the status of all jobs, and return the statuses read from Slurm
+        by slurm job id.
+        """
         if self.read_only:
-            return
+            return {}
         jobs_by_grid_id: dict[int, Job] = dict()
         query = self.session.query(Job)
         for job in query.all():
@@ -343,12 +362,13 @@ dependencies: {dependencies}"""
                 continue
             jobs_by_grid_id[job.grid_id] = job
         if not jobs_by_grid_id:
-            return
+            return {}
         job_statuses = update_job_statuses(jobs_by_grid_id.keys())
         for grid_id, job in jobs_by_grid_id.items():
             if grid_id in job_statuses:
                 job.update(job_statuses[grid_id])
         self.session.flush()
+        return job_statuses
 
     def list_jobs(
         self,
@@ -359,9 +379,9 @@ dependencies: {dependencies}"""
         update_jobs=True,
         dependents=False,
     ) -> list[Job]:
-        if update_jobs:
-            self.update_jobs()
+        up_to_date_statuses = self.update_jobs() if update_jobs else {}
         jobs = []
+        # Read statuses from the database (misses unmapped values)
         query = self.session.query(Job)
         if job_ids:
             query = query.filter(Job.id.in_(job_ids))
@@ -373,6 +393,10 @@ dependencies: {dependencies}"""
             jobs.append(job)
         if dependents:
             jobs = get_dependent_jobs_recursive(jobs)
+        # Set the unmapped values not stored in the database from last update
+        for job in jobs:
+            if job.grid_id in up_to_date_statuses:
+                job.set_unmapped(up_to_date_statuses[job.grid_id])
 
         return jobs
 
@@ -398,6 +422,13 @@ dependencies: {dependencies}"""
 
     def resubmit_jobs(self, **kwargs):
         jobs = self.list_jobs(**kwargs)
+        # fail before cancelling any job
+        for job in jobs:
+            try:
+                job.check_dependencies(self.session)
+            except UnknownJobIdsError as e:
+                e.dependent = job.id
+                raise
         for job in jobs:
             job.cancel(delete_logs=True)
             job.submit(session=self.session)

@@ -9,6 +9,32 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## Unreleased
+
+
+### Features
+
+* `gridtk list` shows a compact overview by default: local and slurm ids, state (followed by the exit code only for jobs that failed, e.g. `FAILED (3)`), name (with the task ids of array jobs, e.g. `train[0-3]`), nodes (or, in parentheses, why a pending job waits) and elapsed time; columns empty for all jobs are hidden. The output file, dependencies and command, always shown so far, now need `-v` or `-o`. On a terminal, long values are truncated so the table fits its width (log paths keep their end, where the slurm id is), states are coloured (unless `NO_COLOR` is set) and a summary line follows (`5 jobs: 3 completed, 2 failed`); when piped, values are never truncated and there is no colour or summary. Headers are now short and upper-case (`ID`, `SLURM`, `STATE`, ...): scripts should use `--json` or `-q` rather than parse the table
+* `gridtk list -v` adds the dependencies, exit code and output file, `-vv` the start time, array tasks, git guard and command; `-o`/`--columns` selects columns exactly (`-o id,state,name`) or relative to the default ones (`-o +output,-nodes`), `--truncate`/`--no-truncate` (`-t`/`-T`) force or disable truncation, `--summary`/`--no-summary` the summary line, `--no-header` omits the header and `-q`/`--quiet` prints only job ids, e.g. `gridtk resubmit -j $(gridtk list -s F -q | paste -sd,)`
+* `gridtk list --json` keeps its keys and adds `outputs` (the log files of all array tasks), `reason`, `elapsed_seconds`, `start`, `finished`, `array_task_ids` and `git_guard`, with `null` for missing values; `-o` selects keys (`gridtk list --json -o id,state,exit_code`), and the output is compact when piped. The elapsed and start times and the pending reason are read from slurm on each call (they are not stored, so job databases need no migration) and are `null` when the database is read-only
+* `gridtk report --tail N` (`-n N`) shows only the last N lines of each log (with `--json`, logs also report `total_lines` and `truncated`), reading logs as a stream so large ones are never held in memory; lines redrawn by progress bars (e.g. tqdm) now only show their last update, which reduces logs of thousands of progress updates to a few lines (`--raw` shows logs as they are)
+* gridtk no longer depends on tabulate
+
+
+* `gridtk submit --dependency` accepts slurm ids of jobs submitted outside gridtk, prefixed with `slurm:` (e.g. `--dependency afterok:1:slurm:1234567`); they are passed to sbatch as they are and are not listed as dependencies by `gridtk list`
+
+
+### Deprecations
+
+* `gridtk list -w`/`--wrap` is deprecated and will be removed in a future version: it now prints a warning and shows full values, as `--no-truncate` does; tables are no longer wrapped. `-t`/`--truncate` remains, as the override of the new automatic truncation
+
+
+### Bug Fixes
+
+* `gridtk submit --dependency` with ids that are not in the job database (e.g. slurm ids given as local ones) fails with a message naming them, e.g. `job(s) 1234567 not found in jobs.sql3 (--dependency takes local ids; ...)`, instead of a `ValueError` traceback; `gridtk resubmit` of a job whose dependency was deleted fails the same way before cancelling any job, instead of cancelling the jobs and then failing
+* commands that fail (e.g. `gridtk submit` with an unknown dependency) no longer leave an empty job database and logs directory behind
+* array jobs are matched to their `squeue` entries (`<id>_<task>` or `<id>_[<tasks>]`): they were only read from sacct, which lacks the live state of pending and running jobs
+
 ## [4.0.0](https://github.com/idiap/gridtk/compare/v3.2.1...v4.0.0) (2026-10-06)
 
 
