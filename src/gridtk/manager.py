@@ -349,10 +349,12 @@ dependencies: {dependencies}"""
             ) from e
         return job
 
-    def update_jobs(self) -> list[Job]:
-        """Update the status of all jobs, and return the updated jobs."""
+    def update_jobs(self) -> dict[int, dict]:
+        """Update the status of all jobs, and return the statuses read from Slurm
+        by slurm job id.
+        """
         if self.read_only:
-            return []
+            return {}
         jobs_by_grid_id: dict[int, Job] = dict()
         query = self.session.query(Job)
         for job in query.all():
@@ -360,13 +362,13 @@ dependencies: {dependencies}"""
                 continue
             jobs_by_grid_id[job.grid_id] = job
         if not jobs_by_grid_id:
-            return []
+            return {}
         job_statuses = update_job_statuses(jobs_by_grid_id.keys())
         for grid_id, job in jobs_by_grid_id.items():
             if grid_id in job_statuses:
                 job.update(job_statuses[grid_id])
         self.session.flush()
-        return list(jobs_by_grid_id.values())
+        return job_statuses
 
     def list_jobs(
         self,
@@ -377,11 +379,9 @@ dependencies: {dependencies}"""
         update_jobs=True,
         dependents=False,
     ) -> list[Job]:
-        # the session only keeps weak references to clean objects: holding the
-        # updated jobs keeps the attributes not stored in the database (e.g.
-        # Job.elapsed) on the instances the query below returns
-        updated = self.update_jobs() if update_jobs else []  # noqa: F841
+        up_to_date_statuses = self.update_jobs() if update_jobs else {}
         jobs = []
+        # Read statuses from the database (misses unmapped values)
         query = self.session.query(Job)
         if job_ids:
             query = query.filter(Job.id.in_(job_ids))
@@ -393,6 +393,10 @@ dependencies: {dependencies}"""
             jobs.append(job)
         if dependents:
             jobs = get_dependent_jobs_recursive(jobs)
+        # Set the unmapped values not stored in the database from last update
+        for job in jobs:
+            if job.grid_id in up_to_date_statuses:
+                job.set_unmapped(up_to_date_statuses[job.grid_id])
 
         return jobs
 

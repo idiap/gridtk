@@ -435,6 +435,34 @@ def test_list_jobs_timing_from_squeue(mock_check_output, runner):
 
 
 @patch("subprocess.check_output")
+def test_list_jobs_unmapped_survives_session_expiry(
+    mock_check_output, runner, monkeypatch
+):
+    from gridtk.manager import JobManager
+
+    with runner.isolated_filesystem():
+        _submit_job(runner=runner, mock_check_output=mock_check_output, job_id=1000)
+        mock_check_output.return_value = (
+            "1000|RUNNING|None|node001|1-02:03:04|2026-01-31T12:00:00\n"
+        )
+        manager = JobManager(database=Path("jobs.sql3"), logs_dir=Path("logs"))
+        with manager as session:
+            real_update = manager.update_jobs
+
+            def update_and_forget():
+                statuses = real_update()
+                # the updated instances are no longer held by the session
+                session.expunge_all()
+                return statuses
+
+            monkeypatch.setattr(manager, "update_jobs", update_and_forget)
+            (job,) = manager.list_jobs()
+            assert job.elapsed == 93784
+            assert job.reason is None
+            assert job.start is not None
+
+
+@patch("subprocess.check_output")
 def test_list_jobs_readonly_database(mock_check_output, runner):
     with runner.isolated_filesystem():
         submit_job_id = 9876543

@@ -392,16 +392,23 @@ class Job(Base):
         if self.nodes == "None assigned":
             # TODO: sometimes only the state_reason from squeue contains the reason
             self.nodes = job_status_dict["state"]["reason"]
+        self.set_unmapped(job_status_dict)
+        if self.state not in JOB_STATES_MAPPING.values():
+            raise ValueError(
+                f"Unknown job state {self.state}, read from {job_status_dict}"
+            )
+        return
+
+    def set_unmapped(self, job_status_dict: dict) -> None:
+        """Set the attributes that are not stored in the database (``reason``,
+        ``elapsed`` and ``start``) from a status, in the shape of :meth:`update`.
+        """
         reason = (job_status_dict["state"].get("reason") or "").strip("()")
         self.reason = reason if reason not in ("", "None") else None
         times = job_status_dict.get("time") or {}
         self.elapsed = _slurm_number(times.get("elapsed"))
         start = _slurm_number(times.get("start"))
         self.start = datetime.fromtimestamp(start) if start else None
-        assert self.state in JOB_STATES_MAPPING.values(), (
-            f"Unknown job state {self.state}, read from {job_status_dict}"
-        )
-        return
 
     @property
     def finished(self) -> bool:
