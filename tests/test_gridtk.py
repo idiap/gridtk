@@ -13,8 +13,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from click.testing import CliRunner
-
 from gridtk.__main__ import cli
 from gridtk.tools import (
     add_default_dep_type,
@@ -22,11 +20,6 @@ from gridtk.tools import (
     parse_array_indexes,
     replace_job_ids_in_dep_str,
 )
-
-
-@pytest.fixture
-def runner():
-    return CliRunner()
 
 
 def _sbatch_output(job_id):
